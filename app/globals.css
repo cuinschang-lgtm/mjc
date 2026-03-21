@@ -1,0 +1,120 @@
+/* Force rebuild */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-serif: 'Playfair Display', serif;
+  --font-sans: 'Inter', sans-serif;
+
+  /* Button System Variables */
+  --btn-transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --btn-scale-active: 0.96;
+  --btn-brightness-active: 0.9;
+  --btn-shadow-active: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+  --btn-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.2);
+  --btn-shimmer-duration: 2s;
+}
+
+body {
+  @apply bg-background text-primary antialiased;
+}
+
+/* Glassmorphism Utility */
+.glass-panel {
+  @apply bg-glass backdrop-blur-md border border-white/10 shadow-glass;
+}
+
+/* Neon Border Utility */
+.neon-border {
+  @apply border border-accent/30 hover:border-accent/60 transition-colors duration-300 shadow-neon;
+}
+
+/* Smooth Transition */
+.smooth-transition {
+  @apply transition-all duration-300 ease-in-out;
+}
+
+/* Ensure clicks work */
+a, button {
+  cursor: pointer;
+}
+
+@keyframes tagPop {
+  0% {
+    transform: scale(0.96);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.tag-pop {
+  animation: tagPop 160ms ease-out;
+}
+
+@layer components {
+  /* Base Button Style */
+  .btn-base {
+    @apply relative overflow-hidden transition-all select-none focus:outline-none disabled:opacity-40 disabled:pointer-events-none rounded-full flex items-center justify-center font-medium tracking-wide;
+    transition-duration: 300ms;
+    transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  /* Interactive States */
+  .btn-base:hover {
+    @apply shadow-lg -translate-y-[2px];
+    box-shadow: 0 10px 20px -5px rgba(255, 77, 77, 0.3);
+  }
+
+  .btn-base:active {
+    @apply scale-[0.98] brightness-90 translate-y-0;
+  }
+
+  /* Primary Button Variant (Gradient Red/Orange) */
+  .btn-primary {
+    @apply btn-base text-white border-none;
+    background: linear-gradient(135deg, #ff4d4d 0%, #ff8c42 100%);
+  }
+  
+  .btn-primary:hover {
+    background: linear-gradient(135deg, #ff6666 0%, #ff9e5e 100%);
+    box-shadow: 0 0 25px rgba(255, 77, 77, 0.5);
+  }
+
+  /* Secondary Button Variant (Outline) */
+  .btn-secondary {
+    @apply btn-base bg-transparent border border-white/20 text-white hover:bg-white/5 hover:border-white/40;
+  }
+  
+  /* Accent Button Variant (Solid Red) */
+  .btn-accent {
+    @apply btn-base bg-accent text-white hover:bg-accent-hover shadow-neon;
+  }
+
+  /* Ghost Button Variant */
+  .btn-ghost {
+    @apply btn-base bg-transparent text-secondary hover:text-white hover:bg-white/5 rounded-lg;
+  }
+  
+  /* Card Styling */
+  .card-modern {
+    @apply bg-card border border-white/5 rounded-2xl overflow-hidden transition-all duration-300 hover:border-accent/30 hover:shadow-card-hover group relative;
+  }
+  
+  .card-modern::before {
+    content: '';
+    @apply absolute inset-0 bg-gradient-to-b from-white/5 to-transparent opacity-0 transition-opacity duration-300 pointer-events-none;
+  }
+  
+  .card-modern:hover::before {
+    @apply opacity-100;
+  }
+
+  /* Input Styling */
+  .input-modern {
+    @apply bg-card border border-white/10 rounded-xl px-4 py-3 text-white placeholder-secondary/50 focus:border-accent focus:ring-1 focus:ring-accent outline-none transition-all duration-300 hover:border-white/20;
+  }
+}
