@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
+const NETEASE_API_BASE_URL = (process.env.NETEASE_API_BASE_URL || '').trim().replace(/\/+$/, '')
+const NETEASE_API_COOKIE = (process.env.NETEASE_API_COOKIE || '').trim()
+
 function normalizeText(s) {
   return String(s || '')
     .toLowerCase()
@@ -71,7 +76,7 @@ export async function GET(request) {
   const term = searchParams.get('term')
   
   if (!term) {
-    return NextResponse.json({ results: [] })
+    return NextResponse.json({ results: [] }, { status: 200, headers: { 'Cache-Control': 'no-store' } })
   }
 
   try {
@@ -81,26 +86,45 @@ export async function GET(request) {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 5000) // 5s timeout
 
-    const neteasePromise = fetch(`https://music.163.com/api/search/get/web?csrf_token=`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Referer': 'https://music.163.com/',
-        'Cookie': 'os=pc'
-      },
-      body: `s=${encodeURIComponent(term)}&type=10&offset=0&total=true&limit=50`,
-      signal: controller.signal
-    }).then(res => res.json()).catch(e => {
+    const neteasePromise = (async () => {
+      try {
+        if (NETEASE_API_BASE_URL) {
+          const u = new URL(`${NETEASE_API_BASE_URL}/search`)
+          u.searchParams.set('keywords', term)
+          u.searchParams.set('type', '10')
+          u.searchParams.set('limit', '50')
+          const res = await fetch(u.toString(), {
+            headers: NETEASE_API_COOKIE ? { Cookie: NETEASE_API_COOKIE } : {},
+            signal: controller.signal,
+          })
+          if (!res.ok) return null
+          return await res.json()
+        }
+
+        const res = await fetch(`https://music.163.com/api/search/get/web?csrf_token=`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            Referer: 'https://music.163.com/',
+            Cookie: 'os=pc',
+          },
+          body: `s=${encodeURIComponent(term)}&type=10&offset=0&total=true&limit=50`,
+          signal: controller.signal,
+        })
+        if (!res.ok) return null
+        return await res.json()
+      } catch (e) {
         console.error('Netease error:', e)
         return null
-    })
+      }
+    })()
 
     // 2. iTunes Search (Server-side)
     const itunesPromise = fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=album&limit=50&country=us`, {
-        signal: controller.signal
+      signal: controller.signal,
     })
-      .then(res => res.json())
-      .catch(e => {
+      .then((res) => (res.ok ? res.json() : null))
+      .catch((e) => {
         console.error('iTunes error:', e)
         return null
       })
@@ -156,10 +180,13 @@ export async function GET(request) {
       return bTracks - aTracks
     })
 
-    return NextResponse.json({ results: scored.map((r) => r.x).slice(0, 50) })
+    return NextResponse.json(
+      { results: scored.map((r) => r.x).slice(0, 50) },
+      { status: 200, headers: { 'Cache-Control': 'no-store' } }
+    )
     
   } catch (error) {
     console.error('Search API error:', error)
-    return NextResponse.json({ results: [], error: error.message })
+    return NextResponse.json({ results: [], error: error.message }, { status: 200, headers: { 'Cache-Control': 'no-store' } })
   }
 }
