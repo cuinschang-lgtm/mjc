@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase'
 import QRCode from 'qrcode'
 import tinycolor from 'tinycolor2'
 import CanvasPoster from '@/components/CanvasPoster'
+import AlbumReviewsPanel from '@/components/AlbumReviewsPanel'
 import {
   buildPosterFilename,
   downloadBlob,
@@ -543,6 +544,10 @@ export default function AlbumDetailPage() {
                   <div className="text-sm text-white/60">缺少信息</div>
                 )}
               </section>
+
+              <div className="xl:col-span-2">
+                <AlbumReviewsPanel albumId={albumId} />
+              </div>
 
               {sections.map((s) => (
                 <SectionCard key={s.key} title={s.title}>
