@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseBrowser'
-import { ArrowLeft, Loader2, Save, History, ListMusic, Award, Newspaper, User, RefreshCw, RotateCcw } from 'lucide-react'
+import { ArrowLeft, Loader2, Save, History, ListMusic, Award, Newspaper, User, RefreshCw, RotateCcw, MessageCircle, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import RichTextEditor from '@/components/RichTextEditor'
 
@@ -13,6 +13,7 @@ const TABS = [
   { key: 'creation', name: '创作背景', icon: RefreshCw },
   { key: 'media', name: '乐评 / 媒体评价', icon: Newspaper },
   { key: 'awards', name: '奖项 / 荣誉', icon: Award },
+  { key: 'reviews', name: '用户乐评', icon: MessageCircle },
 ]
 
 export default function AlbumEditPage() {
@@ -30,6 +31,11 @@ export default function AlbumEditPage() {
   const [lastSavedAt, setLastSavedAt] = useState(null)
   const [versions, setVersions] = useState([])
   const [logs, setLogs] = useState([])
+
+  const [reviews, setReviews] = useState([])
+  const [reviewsCursor, setReviewsCursor] = useState(null)
+  const [reviewsLoading, setReviewsLoading] = useState(false)
+  const [reviewsMoreLoading, setReviewsMoreLoading] = useState(false)
 
   const lastSentRef = useRef('')
   const debounceRef = useRef(null)
@@ -85,12 +91,36 @@ export default function AlbumEditPage() {
     fetchAll()
   }, [albumId])
 
+  const fetchReviews = async (more = false) => {
+    if (!albumId) return
+    if (more) setReviewsMoreLoading(true)
+    else setReviewsLoading(true)
+    try {
+      const url = `/api/album/${encodeURIComponent(albumId)}/reviews${more && reviewsCursor ? `?cursor=${encodeURIComponent(reviewsCursor)}` : ''}`
+      const res = await fetch(url)
+      const json = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(json?.error || 'failed')
+      const next = Array.isArray(json?.reviews) ? json.reviews : []
+      setReviews((prev) => (more ? [...prev, ...next] : next))
+      setReviewsCursor(json?.nextCursor || null)
+    } finally {
+      if (more) setReviewsMoreLoading(false)
+      else setReviewsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (tab !== 'reviews') return
+    fetchReviews(false)
+  }, [tab])
+
   const pickDraft = (a) => {
     return {
       title: a?.title || '',
       artist: a?.artist || '',
       cover_url: a?.cover_url || '',
       release_date: a?.release_date || '',
+      netease_album_id: a?.netease_album_id || '',
       description: a?.description || '',
       genres: Array.isArray(a?.genres) ? a.genres : [],
       gallery_urls: Array.isArray(a?.gallery_urls) ? a.gallery_urls : [],
@@ -117,6 +147,21 @@ export default function AlbumEditPage() {
     if (!res.ok) throw new Error(json?.error || 'failed')
     setAlbum((prev) => ({ ...(prev || {}), ...(json?.album || {}) }))
     return json?.album
+  }
+
+  const deleteReview = async (reviewId) => {
+    const token = await ensureAdmin()
+    if (!token) return
+    const reason = prompt('请输入删除原因（必填）')
+    if (!reason) return
+    const res = await fetch(`/api/admin/reviews/${encodeURIComponent(reviewId)}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ reason }),
+    })
+    const json = await res.json().catch(() => null)
+    if (!res.ok) throw new Error(json?.error || 'failed')
+    await fetchReviews(false)
   }
 
   const scheduleAutosave = (nextAlbum) => {
@@ -349,6 +394,15 @@ export default function AlbumEditPage() {
                 onChange={(e) => updateAlbumLocal({ release_date: e.target.value })}
                 className="w-full h-10 px-3 rounded-xl bg-black/20 border border-white/10 text-white text-sm outline-none focus:border-accent/40"
                 placeholder="YYYY-MM-DD"
+              />
+            </div>
+            <div className="space-y-1">
+              <div className="text-xs text-secondary">网易云专辑 ID</div>
+              <input
+                value={album?.netease_album_id || ''}
+                onChange={(e) => updateAlbumLocal({ netease_album_id: e.target.value })}
+                className="w-full h-10 px-3 rounded-xl bg-black/20 border border-white/10 text-white text-sm outline-none focus:border-accent/40"
+                placeholder="例如：123456"
               />
             </div>
             <div className="space-y-1">
@@ -619,6 +673,67 @@ export default function AlbumEditPage() {
             </div>
           </div>
         ) : null}
+
+        {tab === 'reviews' ? (
+          <div className="glass-panel p-6 rounded-3xl border border-white/10">
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-white font-bold">用户乐评</div>
+              <button
+                type="button"
+                onClick={() => fetchReviews(false)}
+                className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white/80 hover:text-white hover:bg-white/10 transition"
+              >
+                刷新
+              </button>
+            </div>
+
+            {reviewsLoading ? (
+              <div className="flex items-center gap-2 text-white/60 text-sm">
+                <Loader2 size={16} className="animate-spin" />
+                加载中…
+              </div>
+            ) : reviews.length ? (
+              <div className="space-y-3">
+                {reviews.map((r) => (
+                  <div key={r.id} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-white font-bold">{r.title || '（无标题）'}</div>
+                        <div className="text-xs text-white/60 mt-1">
+                          {r.author?.nickname || '用户'} · 评分 {Number(r.score)}/10 · {r.createdAt ? new Date(r.createdAt).toLocaleString() : '-'}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => deleteReview(r.id).catch((e) => alert(e?.message || '删除失败'))}
+                        className="h-9 w-9 inline-flex items-center justify-center rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-300"
+                        aria-label="删除"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                    <div className="mt-3 text-sm text-white/80 leading-relaxed prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: String(r.content || '') }} />
+                  </div>
+                ))}
+
+                {reviewsCursor ? (
+                  <button
+                    type="button"
+                    disabled={reviewsMoreLoading}
+                    onClick={() => fetchReviews(true)}
+                    className="h-10 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-white/80"
+                  >
+                    {reviewsMoreLoading ? '加载中…' : '加载更多（20条/页）'}
+                  </button>
+                ) : (
+                  <div className="text-xs text-white/40">没有更多了</div>
+                )}
+              </div>
+            ) : (
+              <div className="text-sm text-white/60">暂无乐评</div>
+            )}
+          </div>
+        ) : null}
       </div>
 
       <div className="space-y-6 xl:sticky xl:top-10">
@@ -668,4 +783,3 @@ export default function AlbumEditPage() {
     </div>
   )
 }
-
