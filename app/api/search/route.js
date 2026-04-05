@@ -47,10 +47,25 @@ function scoreAlbum(term, album) {
   const qTokens = q ? q.split(' ') : []
   const title = normalizeText(album?.collectionName)
   const artist = normalizeText(album?.artistName)
+  const poolTA = `${title} ${artist}`.trim()
+  const poolAT = `${artist} ${title}`.trim()
   let score = 0
 
+  if ((poolTA && q && poolTA === q) || (poolAT && q && poolAT === q)) score += 160
   if (title && q && title === q) score += 120
   if (title && q && title.startsWith(`${q} `)) score += 70
+
+  if (qTokens.length >= 2) {
+    const unionHits = qTokens.filter((t) => t && poolTA.includes(t)).length
+    const titleHits = qTokens.filter((t) => t && title.includes(t)).length
+    const artistHits = qTokens.filter((t) => t && artist.includes(t)).length
+    const coverage = qTokens.length ? unionHits / qTokens.length : 0
+
+    score += Math.round(90 * coverage)
+    if (titleHits > 0 && artistHits > 0) score += 40
+    if (title && artist && titleHits >= 1 && artistHits >= 2) score += 25
+  }
+
   if (qTokens.length >= 2) {
     if (artist && q && artist === q) score += 80
     if (artist && q && artist.includes(q)) score += 20
@@ -136,7 +151,8 @@ export async function GET(request) {
 
     // Process Netease Data
     if (neteaseData?.result?.albums) {
-       const neteaseAlbums = neteaseData.result.albums.map(album => ({
+       const neteaseAlbums = neteaseData.result.albums
+         .map((album) => ({
           collectionId: `ne_${album.id}`,
           collectionName: album.name,
           artistName: album.artist.name,
@@ -145,7 +161,14 @@ export async function GET(request) {
           trackCount: album.size,
           collectionViewUrl: `https://music.163.com/#/album?id=${album.id}`,
           source: 'Netease'
-       }))
+         }))
+         .filter((album) => {
+           const title = normalizeText(album.collectionName)
+           const artist = normalizeText(album.artistName)
+           if (hasForbidden(title, artist) && title !== normalizeText(term)) return false
+           if (Number(album.trackCount) > 0 && Number(album.trackCount) < 5) return false
+           return true
+         })
        results = [...results, ...neteaseAlbums]
     }
 
@@ -180,8 +203,17 @@ export async function GET(request) {
       return bTracks - aTracks
     })
 
+    const seen = new Set()
+    const deduped = []
+    for (const r of scored) {
+      const k = `${normalizeText(r.x?.collectionName)}|${normalizeText(r.x?.artistName)}`
+      if (seen.has(k)) continue
+      seen.add(k)
+      deduped.push(r)
+    }
+
     return NextResponse.json(
-      { results: scored.map((r) => r.x).slice(0, 50) },
+      { results: deduped.map((r) => r.x).slice(0, 50) },
       { status: 200, headers: { 'Cache-Control': 'no-store' } }
     )
     
