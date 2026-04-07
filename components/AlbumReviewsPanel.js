@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Heart, Loader2, Star, Trash2 } from 'lucide-react'
+import { Bookmark, Heart, Loader2, Trash2 } from 'lucide-react'
 import RichTextEditor from '@/components/RichTextEditor'
-import { supabase } from '@/lib/supabase'
+import StarRating10 from '@/components/StarRating10'
+import { supabase } from '@/lib/supabaseBrowser'
 
 function stripTags(html) {
   return String(html || '')
@@ -21,34 +22,15 @@ function formatTime(ts) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
-function ScoreStars({ value, onChange, disabled }) {
-  const n = Math.round(Number(value) || 0)
-  return (
-    <div className="flex items-center gap-1">
-      {Array.from({ length: 10 }).map((_, i) => {
-        const v = i + 1
-        const active = v <= n
-        return (
-          <button
-            key={v}
-            type="button"
-            disabled={disabled}
-            onClick={() => onChange?.(v)}
-            className={disabled ? 'cursor-not-allowed' : 'cursor-pointer'}
-            aria-label={`评分 ${v}`}
-          >
-            <Star size={18} className={active ? 'text-yellow-400' : 'text-white/25'} fill={active ? 'currentColor' : 'none'} />
-          </button>
-        )
-      })}
-      <div className="ml-2 text-xs text-white/60">{n ? `${n}/10` : '未评分'}</div>
-    </div>
-  )
+async function getAccessToken() {
+  const { data } = await supabase.auth.getSession()
+  return data?.session?.access_token || null
 }
 
 export default function AlbumReviewsPanel({ albumId }) {
   const [me, setMe] = useState(null)
   const [loadingMe, setLoadingMe] = useState(true)
+  const [token, setToken] = useState(null)
   const [listened, setListened] = useState(false)
   const [score, setScore] = useState(0)
 
@@ -68,10 +50,12 @@ export default function AlbumReviewsPanel({ albumId }) {
     const run = async () => {
       setLoadingMe(true)
       try {
-        const { data: auth } = await supabase.auth.getUser()
-        const user = auth?.user || null
+        const { data: sessionData } = await supabase.auth.getSession()
+        const session = sessionData?.session || null
+        const user = session?.user || null
         setMe(user)
-        if (!user) {
+        setToken(session?.access_token || null)
+        if (!user || !session?.access_token) {
           setListened(false)
           setScore(0)
           setAdmin(false)
@@ -86,9 +70,9 @@ export default function AlbumReviewsPanel({ albumId }) {
 
         setListened(row?.status === 'listened')
         const pr = row?.personal_rating === null || row?.personal_rating === undefined ? 0 : Number(row.personal_rating)
-        setScore(Number.isFinite(pr) ? Math.round(pr) : 0)
+        setScore(Number.isFinite(pr) ? Math.round(pr * 2) / 2 : 0)
 
-        const meRes = await fetch('/api/me')
+        const meRes = await fetch('/api/me', { headers: { Authorization: `Bearer ${session.access_token}` } })
         const meJson = await meRes.json().catch(() => null)
         setAdmin(Boolean(meJson?.isAdmin))
       } finally {
@@ -97,6 +81,14 @@ export default function AlbumReviewsPanel({ albumId }) {
     }
     if (albumId) run()
   }, [albumId])
+
+  useEffect(() => {
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      setMe(session?.user || null)
+      setToken(session?.access_token || null)
+    })
+    return () => data?.subscription?.unsubscribe()
+  }, [])
 
   const fetchPage = async (more = false) => {
     if (!albumId) return
@@ -124,9 +116,10 @@ export default function AlbumReviewsPanel({ albumId }) {
 
   const saveListened = async (next) => {
     if (!albumId) return
+    const t = token || (await getAccessToken())
     const res = await fetch(`/api/album/${encodeURIComponent(albumId)}/rating`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(t ? { Authorization: `Bearer ${t}` } : {}) },
       body: JSON.stringify({ hasListened: next, score: next ? null : null }),
     })
     const j = await res.json().catch(() => null)
@@ -135,9 +128,10 @@ export default function AlbumReviewsPanel({ albumId }) {
 
   const saveScore = async (nextScore) => {
     if (!albumId) return
+    const t = token || (await getAccessToken())
     const res = await fetch(`/api/album/${encodeURIComponent(albumId)}/rating`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(t ? { Authorization: `Bearer ${t}` } : {}) },
       body: JSON.stringify({ hasListened: true, score: nextScore }),
     })
     const j = await res.json().catch(() => null)
@@ -159,13 +153,12 @@ export default function AlbumReviewsPanel({ albumId }) {
 
   const onPickScore = async (v) => {
     if (!me || loadingMe) return
-    if (!listened) {
-      alert('请先标记为已听过')
-      return
-    }
-    setScore(v)
+    const next = Math.round(Number(v) * 2) / 2
+    if (!Number.isFinite(next)) return
+    if (!listened) setListened(true)
+    setScore(next)
     try {
-      await saveScore(v)
+      await saveScore(next)
     } catch (e) {
       alert(e?.message || '评分失败')
     }
@@ -177,9 +170,10 @@ export default function AlbumReviewsPanel({ albumId }) {
     if (!canSubmit || submitting) return
     try {
       setSubmitting(true)
+      const t = token || (await getAccessToken())
       const res = await fetch(`/api/album/${encodeURIComponent(albumId)}/reviews`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(t ? { Authorization: `Bearer ${t}` } : {}) },
         body: JSON.stringify({ title: title.trim(), contentHtml, score, hasListened: true }),
       })
       const json = await res.json().catch(() => null)
@@ -206,7 +200,11 @@ export default function AlbumReviewsPanel({ albumId }) {
         return { ...r, likedByMe: liked, likeCount: Math.max(0, (r.likeCount || 0) + (liked ? 1 : -1)) }
       })
     )
-    const res = await fetch(`/api/review/${encodeURIComponent(reviewId)}/like`, { method: 'POST' })
+    const t = token || (await getAccessToken())
+    const res = await fetch(`/api/review/${encodeURIComponent(reviewId)}/like`, {
+      method: 'POST',
+      headers: t ? { Authorization: `Bearer ${t}` } : {},
+    })
     const json = await res.json().catch(() => null)
     if (!res.ok) {
       setItems((prev) =>
@@ -217,6 +215,44 @@ export default function AlbumReviewsPanel({ albumId }) {
         })
       )
       alert(json?.error || '点赞失败')
+    }
+  }
+
+  const toggleFavorite = async (reviewId) => {
+    if (!me) {
+      alert('请先登录')
+      return
+    }
+    setItems((prev) =>
+      prev.map((r) => {
+        if (r.id !== reviewId) return r
+        const next = !r.favoritedByMe
+        return {
+          ...r,
+          favoritedByMe: next,
+          favoriteCount: Math.max(0, (r.favoriteCount || 0) + (next ? 1 : -1)),
+        }
+      })
+    )
+    const t = token || (await getAccessToken())
+    const res = await fetch(`/api/review/${encodeURIComponent(reviewId)}/favorite`, {
+      method: 'POST',
+      headers: t ? { Authorization: `Bearer ${t}` } : {},
+    })
+    const json = await res.json().catch(() => null)
+    if (!res.ok) {
+      setItems((prev) =>
+        prev.map((r) => {
+          if (r.id !== reviewId) return r
+          const next = !r.favoritedByMe
+          return {
+            ...r,
+            favoritedByMe: next,
+            favoriteCount: Math.max(0, (r.favoriteCount || 0) + (next ? 1 : -1)),
+          }
+        })
+      )
+      alert(json?.error || '收藏失败')
     }
   }
 
@@ -271,7 +307,7 @@ export default function AlbumReviewsPanel({ albumId }) {
 
           <div className="flex items-center justify-between gap-3">
             <div className="text-sm text-white/80">我的评分</div>
-            <ScoreStars value={score} onChange={onPickScore} disabled={!me || loadingMe || !listened} />
+            <StarRating10 value={score} onChange={onPickScore} disabled={!me || loadingMe} />
           </div>
 
           <div className="space-y-2">
@@ -362,6 +398,19 @@ export default function AlbumReviewsPanel({ albumId }) {
                         <Heart size={16} fill={r.likedByMe ? 'currentColor' : 'none'} />
                         <span className="text-xs">{r.likeCount || 0}</span>
                       </button>
+
+                      <button
+                        type="button"
+                        onClick={() => toggleFavorite(r.id)}
+                        className={
+                          r.favoritedByMe
+                            ? 'h-9 px-3 rounded-xl bg-yellow-500/15 border border-yellow-500/20 text-yellow-200 inline-flex items-center gap-2'
+                            : 'h-9 px-3 rounded-xl bg-white/5 border border-white/10 text-white/70 inline-flex items-center gap-2'
+                        }
+                      >
+                        <Bookmark size={16} fill={r.favoritedByMe ? 'currentColor' : 'none'} />
+                        <span className="text-xs">{r.favoriteCount || 0}</span>
+                      </button>
                     </div>
                   </div>
                   <div
@@ -391,4 +440,3 @@ export default function AlbumReviewsPanel({ albumId }) {
     </section>
   )
 }
-
