@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Library, Search, BarChart3, Settings, LogOut, Shield } from 'lucide-react'
+import { Library, Search, BarChart3, Settings, LogOut, Shield, User } from 'lucide-react'
 import { supabase } from '@/lib/supabaseBrowser'
 import { cn } from '../lib/utils'
 import { useEffect, useState } from 'react'
@@ -13,6 +13,7 @@ const Sidebar = () => {
   const router = useRouter()
   const [user, setUser] = useState(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [profile, setProfile] = useState(null)
   const { t } = useLanguage()
 
   useEffect(() => {
@@ -27,8 +28,20 @@ const Sidebar = () => {
         } catch {
           setIsAdmin(false)
         }
+
+        try {
+          const { data: p } = await supabase
+            .from('profiles')
+            .select('nickname,avatar_url,signature')
+            .eq('user_id', session.user.id)
+            .maybeSingle()
+          setProfile(p || null)
+        } catch {
+          setProfile(null)
+        }
       } else {
         setIsAdmin(false)
+        setProfile(null)
       }
     }
     checkUser()
@@ -40,8 +53,17 @@ const Sidebar = () => {
           .then((r) => r.json())
           .then((j) => setIsAdmin(!!j?.isAdmin))
           .catch(() => setIsAdmin(false))
+
+        supabase
+          .from('profiles')
+          .select('nickname,avatar_url,signature')
+          .eq('user_id', session.user.id)
+          .maybeSingle()
+          .then(({ data }) => setProfile(data || null))
+          .catch(() => setProfile(null))
       } else {
         setIsAdmin(false)
+        setProfile(null)
       }
     })
 
@@ -58,6 +80,7 @@ const Sidebar = () => {
     { name: t('sidebar.search'), href: '/search', icon: Search },
     { name: t('sidebar.charts'), href: '/charts', icon: BarChart3 },
     ...(isAdmin ? [{ name: t('sidebar.adminAlbums'), href: '/albums', icon: Shield }] : []),
+    { name: t('sidebar.personalCenter'), href: '/me', icon: User },
     { name: t('sidebar.settings'), href: '/settings', icon: Settings },
   ]
 
@@ -105,15 +128,23 @@ const Sidebar = () => {
 
       {user ? (
         <div className="pt-8 border-t border-white/5">
-          <div className="flex items-center gap-3 px-2 mb-6 group cursor-pointer">
+          <button
+            type="button"
+            onClick={() => router.push('/me')}
+            className="w-full flex items-center gap-3 px-2 mb-6 group cursor-pointer text-left"
+          >
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-accent to-orange-500 flex items-center justify-center text-white font-bold text-sm shadow-lg group-hover:shadow-neon transition-all duration-300">
-              {user.email?.[0].toUpperCase()}
+              {profile?.avatar_url ? (
+                <img src={profile.avatar_url} alt="avatar" className="w-full h-full object-cover rounded-full" />
+              ) : (
+                user.email?.[0].toUpperCase()
+              )}
             </div>
             <div className="flex-1 overflow-hidden">
-              <p className="text-sm text-white font-medium truncate group-hover:text-accent transition-colors">{user.email}</p>
-              <p className="text-xs text-secondary/60 truncate">Premium Member</p>
+              <p className="text-sm text-white font-medium truncate group-hover:text-accent transition-colors">{profile?.nickname || user.email}</p>
+              <p className="text-xs text-secondary/60 truncate">个人中心</p>
             </div>
-          </div>
+          </button>
           <button 
             onClick={handleSignOut}
             className="flex items-center gap-3 px-4 py-3 w-full text-secondary hover:text-white hover:bg-white/5 rounded-xl transition-colors text-sm font-medium"
