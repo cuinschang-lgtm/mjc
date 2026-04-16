@@ -81,11 +81,32 @@ export default function AlbumDetailPage() {
       const json = await res.json()
       if (!res.ok) throw new Error(json?.error || 'failed')
       setData(json)
+      return json
     } catch (e) {
       setError(e?.message || '加载失败')
+      return null
     } finally {
       setLoading(false)
     }
+  }
+
+  const refetchUntilReady = async () => {
+    const first = await fetchDetail(true)
+    const hasTracks = Array.isArray(first?.basic?.tracks) && first.basic.tracks.length > 0
+    const hasContent =
+      !!first?.content?.artistBio || !!first?.content?.creationBackground || !!first?.content?.mediaReviews || !!first?.content?.awards
+    if (hasTracks || hasContent) return
+
+    for (let i = 0; i < 2; i += 1) {
+      await new Promise((r) => setTimeout(r, 1200 * (i + 1)))
+      const next = await fetchDetail(true)
+      const okTracks = Array.isArray(next?.basic?.tracks) && next.basic.tracks.length > 0
+      const okContent =
+        !!next?.content?.artistBio || !!next?.content?.creationBackground || !!next?.content?.mediaReviews || !!next?.content?.awards
+      if (okTracks || okContent) return
+    }
+
+    setError('抓取仍未成功。建议配置 `NETEASE_API_BASE_URL`（见 docs/NETEASE_API_SETUP.md），或稍后重试。')
   }
 
   useEffect(() => {
@@ -335,8 +356,9 @@ export default function AlbumDetailPage() {
           </button>
 
           <button
+            data-tour="album-refetch"
             type="button"
-            onClick={() => fetchDetail(true)}
+            onClick={refetchUntilReady}
             disabled={loading}
             className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white/80 hover:text-white hover:bg-white/10 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
           >
@@ -504,7 +526,7 @@ export default function AlbumDetailPage() {
             </header>
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-              <section className="glass-panel p-6 rounded-3xl border border-white/10 xl:col-span-2">
+              <section data-tour="album-tracklist" className="glass-panel p-6 rounded-3xl border border-white/10 xl:col-span-2">
                 <div className="flex items-center justify-between gap-4 mb-3">
                   <h2 className="text-lg font-bold text-white">曲目列表</h2>
                   {Array.isArray(data?.basic?.tracks) && data.basic.tracks.length > 12 ? (
@@ -545,7 +567,7 @@ export default function AlbumDetailPage() {
                 )}
               </section>
 
-              <div className="xl:col-span-2">
+              <div data-tour="album-reviews" className="xl:col-span-2">
                 <AlbumReviewsPanel albumId={albumId} />
               </div>
 
