@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseBrowser'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Mail, Lock, Loader2, ArrowRight } from 'lucide-react'
@@ -11,13 +11,19 @@ export default function AuthPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const [isLogin, setIsLogin] = useState(true)
+  const searchParams = useSearchParams()
+  const mode = searchParams?.get('mode') || ''
+  const [isLogin, setIsLogin] = useState(mode === 'signup' ? false : true)
   const [error, setError] = useState(null)
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { t } = useLanguage()
 
   const returnTo = searchParams?.get('returnTo') || '/'
+
+  useEffect(() => {
+    if (mode === 'signup') setIsLogin(false)
+    if (mode === 'login') setIsLogin(true)
+  }, [mode])
 
   const handleAuth = async (e) => {
     e.preventDefault()
@@ -33,15 +39,28 @@ export default function AuthPage() {
         if (error) throw error
         router.push(returnTo)
       } else {
-        const { error } = await supabase.auth.signUp({
+        const { error: signUpError } = await supabase.auth.signUp({
           email,
           password,
         })
-        if (error) throw error
-        // For signup, usually need to verify email, but we'll redirect to show message or auto-login if configured
-        alert(t('auth.checkEmailDesc'))
-        // Optionally switch to login mode or redirect
-        setIsLogin(true)
+        if (signUpError) throw signUpError
+
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        })
+
+        if (signInError) {
+          const msg = String(signInError?.message || '')
+          if (/confirm|verified|verification|未确认|未验证/i.test(msg)) {
+            setError('注册成功，但需要先完成邮箱验证后才能登录。请前往邮箱完成验证，再返回登录。')
+            setIsLogin(true)
+            return
+          }
+          throw signInError
+        }
+
+        router.push(returnTo)
       }
     } catch (err) {
       setError(t('auth.error') + ': ' + err.message)
