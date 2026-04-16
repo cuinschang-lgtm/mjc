@@ -181,15 +181,24 @@ export default function OnboardingTour() {
     }
 
     let mounted = true
+
+    const fallbackTimer = window.setTimeout(() => {
+      if (!mounted) return
+      setAuthed(false)
+      setAuthReady(true)
+    }, 1600)
+
     supabase.auth
       .getSession()
       .then(({ data }) => {
         if (!mounted) return
+        window.clearTimeout(fallbackTimer)
         setAuthed(!!data?.session?.user)
         setAuthReady(true)
       })
       .catch(() => {
         if (!mounted) return
+        window.clearTimeout(fallbackTimer)
         setAuthed(false)
         setAuthReady(true)
       })
@@ -202,6 +211,7 @@ export default function OnboardingTour() {
 
     return () => {
       mounted = false
+      window.clearTimeout(fallbackTimer)
       try {
         data?.subscription?.unsubscribe()
       } catch {}
