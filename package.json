@@ -6,13 +6,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:onboarding": "node scripts/onboarding-epilogue-visibility-smoke.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.98.0",
     "clsx": "^2.1.0",
     "dotenv": "^17.3.1",
+    "driver.js": "^1.4.0",
     "html-to-image": "^1.11.13",
     "lodash": "^4.17.23",
     "lucide-react": "^0.344.0",
