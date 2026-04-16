@@ -12,6 +12,7 @@ export default function TagModal({ isOpen, onClose, collectionId, initialTags = 
   const { t } = useLanguage()
 
   const lastInitKeyRef = useRef('')
+  const openedRef = useRef(false)
 
   useEffect(() => {
     if (!isOpen) return
@@ -22,6 +23,18 @@ export default function TagModal({ isOpen, onClose, collectionId, initialTags = 
       setTags(arr)
     }
   }, [isOpen, collectionId, initialTags])
+
+  useEffect(() => {
+    if (!isOpen) {
+      openedRef.current = false
+      return
+    }
+    if (openedRef.current) return
+    openedRef.current = true
+    try {
+      window.dispatchEvent(new CustomEvent('pickup:onboarding', { detail: { type: 'tags:modal_opened', collectionId } }))
+    } catch {}
+  }, [isOpen, collectionId])
 
   if (!isOpen) return null
 
@@ -36,6 +49,9 @@ export default function TagModal({ isOpen, onClose, collectionId, initialTags = 
       if (error) throw error
       
       onUpdate(collectionId, tags)
+      try {
+        window.dispatchEvent(new CustomEvent('pickup:onboarding', { detail: { type: 'tags:saved', collectionId } }))
+      } catch {}
       onClose()
     } catch (error) {
       console.error('Error updating tags:', error)
@@ -47,7 +63,10 @@ export default function TagModal({ isOpen, onClose, collectionId, initialTags = 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-card border border-white/10 rounded-xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
+      <div
+        className="bg-card border border-white/10 rounded-xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200"
+        data-tour="tag-modal"
+      >
         <div className="p-4 border-b border-white/10 flex items-center justify-between">
           <h3 className="text-lg font-serif font-bold text-white flex items-center gap-2">
             <Tag size={18} className="text-accent" />
@@ -58,7 +77,7 @@ export default function TagModal({ isOpen, onClose, collectionId, initialTags = 
           </button>
         </div>
         
-        <div className="p-6">
+        <div className="p-6" data-tour="tag-editor">
           <TagEditor
             value={tags}
             onChange={setTags}
@@ -79,6 +98,7 @@ export default function TagModal({ isOpen, onClose, collectionId, initialTags = 
           <button 
             onClick={handleSave}
             disabled={loading}
+            data-tour="tag-save"
             className="px-6 py-2 bg-white text-black text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
           >
             {loading ? t('common.loading') : t('library.saveChanges')}
