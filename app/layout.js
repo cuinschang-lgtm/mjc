@@ -1,4 +1,5 @@
 import './globals.css'
+import 'driver.js/dist/driver.css'
 import { Inter, Playfair_Display } from 'next/font/google'
 import { LanguageProvider } from '@/contexts/LanguageContext'
 
