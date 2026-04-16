@@ -135,6 +135,25 @@ export default function OnboardingTour() {
   }
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const qs = new URLSearchParams(window.location.search)
+        const v = qs.get('onboarding')
+        if (v === '1' || v === 'reset') {
+          const next = { step: 'signup', done: false, lastAlbumId: '' }
+          safeWrite(next)
+          setProgress(next)
+          setReady(true)
+          try {
+            qs.delete('onboarding')
+            const url = `${window.location.pathname}${qs.toString() ? `?${qs.toString()}` : ''}${window.location.hash || ''}`
+            window.history.replaceState({}, '', url)
+          } catch {}
+          return
+        }
+      } catch {}
+    }
+
     const saved = safeRead()
     if (saved?.done) {
       setProgress({ step: 'done', done: true, lastAlbumId: String(saved?.lastAlbumId || '') })
