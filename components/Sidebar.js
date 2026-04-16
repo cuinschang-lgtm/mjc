@@ -2,7 +2,11 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+<<<<<<< HEAD
 import { Library, Search, BarChart3, Settings, LogOut, Shield, User } from 'lucide-react'
+=======
+import { Library, Search, BarChart3, Settings, LogOut, Shield } from 'lucide-react'
+>>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
 import { supabase } from '@/lib/supabaseBrowser'
 import { cn } from '../lib/utils'
 import { useEffect, useState } from 'react'
@@ -13,7 +17,10 @@ const Sidebar = () => {
   const router = useRouter()
   const [user, setUser] = useState(null)
   const [isAdmin, setIsAdmin] = useState(false)
+<<<<<<< HEAD
   const [profile, setProfile] = useState(null)
+=======
+>>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
   const { t } = useLanguage()
 
   useEffect(() => {
@@ -28,6 +35,7 @@ const Sidebar = () => {
         } catch {
           setIsAdmin(false)
         }
+<<<<<<< HEAD
 
         try {
           const { data: p } = await supabase
@@ -42,6 +50,10 @@ const Sidebar = () => {
       } else {
         setIsAdmin(false)
         setProfile(null)
+=======
+      } else {
+        setIsAdmin(false)
+>>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
       }
     }
     checkUser()
@@ -53,6 +65,7 @@ const Sidebar = () => {
           .then((r) => r.json())
           .then((j) => setIsAdmin(!!j?.isAdmin))
           .catch(() => setIsAdmin(false))
+<<<<<<< HEAD
 
         supabase
           .from('profiles')
@@ -64,6 +77,10 @@ const Sidebar = () => {
       } else {
         setIsAdmin(false)
         setProfile(null)
+=======
+      } else {
+        setIsAdmin(false)
+>>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
       }
     })
 
@@ -76,11 +93,18 @@ const Sidebar = () => {
   }
 
   const navItems = [
+<<<<<<< HEAD
     { name: t('sidebar.myLibrary'), href: '/', icon: Library, tour: 'nav-library' },
     { name: t('sidebar.search'), href: '/search', icon: Search, tour: 'nav-search' },
     { name: t('sidebar.charts'), href: '/charts', icon: BarChart3 },
     ...(isAdmin ? [{ name: t('sidebar.adminAlbums'), href: '/albums', icon: Shield }] : []),
     { name: t('sidebar.personalCenter'), href: '/me', icon: User },
+=======
+    { name: t('sidebar.myLibrary'), href: '/', icon: Library },
+    { name: t('sidebar.search'), href: '/search', icon: Search },
+    { name: t('sidebar.charts'), href: '/charts', icon: BarChart3 },
+    ...(isAdmin ? [{ name: t('sidebar.adminAlbums'), href: '/albums', icon: Shield }] : []),
+>>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
     { name: t('sidebar.settings'), href: '/settings', icon: Settings },
   ]
 
@@ -105,7 +129,10 @@ const Sidebar = () => {
             <Link 
               key={item.href} 
               href={item.href}
+<<<<<<< HEAD
               data-tour={item.tour}
+=======
+>>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
               className={cn(
                 "flex items-center gap-4 px-4 py-3.5 rounded-full transition-all duration-300 group cursor-pointer relative overflow-hidden",
                 isActive 
@@ -129,6 +156,7 @@ const Sidebar = () => {
 
       {user ? (
         <div className="pt-8 border-t border-white/5">
+<<<<<<< HEAD
           <button
             type="button"
             onClick={() => router.push('/me')}
@@ -146,6 +174,17 @@ const Sidebar = () => {
               <p className="text-xs text-secondary/60 truncate">个人中心</p>
             </div>
           </button>
+=======
+          <div className="flex items-center gap-3 px-2 mb-6 group cursor-pointer">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-accent to-orange-500 flex items-center justify-center text-white font-bold text-sm shadow-lg group-hover:shadow-neon transition-all duration-300">
+              {user.email?.[0].toUpperCase()}
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <p className="text-sm text-white font-medium truncate group-hover:text-accent transition-colors">{user.email}</p>
+              <p className="text-xs text-secondary/60 truncate">Premium Member</p>
+            </div>
+          </div>
+>>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
           <button 
             onClick={handleSignOut}
             className="flex items-center gap-3 px-4 py-3 w-full text-secondary hover:text-white hover:bg-white/5 rounded-xl transition-colors text-sm font-medium"
@@ -157,8 +196,12 @@ const Sidebar = () => {
       ) : (
         <div className="pt-8 border-t border-white/5">
            <Link 
+<<<<<<< HEAD
             data-tour="signin"
             href={`/auth?returnTo=${encodeURIComponent('/')}`}
+=======
+            href="/auth"
+>>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
             className="flex items-center justify-center gap-2 px-4 py-3 w-full bg-white text-black hover:bg-gray-200 rounded-full transition-all text-sm font-bold shadow-lg hover:shadow-xl hover:-translate-y-0.5"
           >
             {t('sidebar.signIn')}
