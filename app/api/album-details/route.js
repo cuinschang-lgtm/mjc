@@ -62,6 +62,21 @@ async function fetchRateLimited(url, opts = {}, timeoutMs = 9000) {
   }
 }
 
+async function withRetry(fn, { retries = 2, baseDelayMs = 600 } = {}) {
+  let lastErr = null
+  for (let i = 0; i <= retries; i += 1) {
+    try {
+      return await fn(i)
+    } catch (e) {
+      lastErr = e
+      if (i >= retries) break
+      const ms = baseDelayMs * Math.pow(1.7, i)
+      await sleep(ms)
+    }
+  }
+  throw lastErr
+}
+
 async function ensureCacheDir() {
   await fs.mkdir(CACHE_DIR, { recursive: true })
 }
@@ -84,7 +99,7 @@ async function writeCache(albumId, payload) {
   await fs.writeFile(p, JSON.stringify(payload, null, 2), 'utf8')
 }
 
-async function neteaseSearchAlbumId(title, artist) {
+async function neteaseSearchAlbumId(title, artist, timeoutMs = 9000) {
   const q = [title, artist].filter(Boolean).join(' ').trim()
   if (!q) return null
 
@@ -96,7 +111,7 @@ async function neteaseSearchAlbumId(title, artist) {
     const res = await fetchRateLimited(
       u.toString(),
       { headers: NETEASE_API_COOKIE ? { Cookie: NETEASE_API_COOKIE } : {} },
-      9000
+      timeoutMs
     )
     if (!res.ok) return null
     const json = await res.json()
@@ -106,15 +121,19 @@ async function neteaseSearchAlbumId(title, artist) {
   }
 
   const body = `s=${encodeURIComponent(q)}&type=10&offset=0&total=true&limit=5`
-  const res = await fetchRateLimited('https://music.163.com/api/search/get/web?csrf_token=', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Referer: 'https://music.163.com/',
-      Cookie: process.env.NETEASE_COOKIE || 'os=pc',
+  const res = await fetchRateLimited(
+    'https://music.163.com/api/search/get/web?csrf_token=',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Referer: 'https://music.163.com/',
+        Cookie: process.env.NETEASE_COOKIE || 'os=pc',
+      },
+      body,
     },
-    body,
-  })
+    timeoutMs
+  )
   if (!res.ok) return null
   const json = await res.json()
   const albums = json?.result?.albums
@@ -122,26 +141,30 @@ async function neteaseSearchAlbumId(title, artist) {
   return albums[0]?.id ? String(albums[0].id) : null
 }
 
-async function neteaseAlbumDetail(neteaseAlbumId) {
+async function neteaseAlbumDetail(neteaseAlbumId, timeoutMs = 9000) {
   if (NETEASE_API_BASE_URL) {
     const u = new URL(`${NETEASE_API_BASE_URL}/album`)
     u.searchParams.set('id', String(neteaseAlbumId))
     const res = await fetchRateLimited(
       u.toString(),
       { headers: NETEASE_API_COOKIE ? { Cookie: NETEASE_API_COOKIE } : {} },
-      9000
+      timeoutMs
     )
     if (!res.ok) return null
     const json = await res.json()
     return json?.album ? json : null
   }
 
-  const res = await fetchRateLimited(`https://music.163.com/api/album/${encodeURIComponent(neteaseAlbumId)}`, {
-    headers: {
-      Referer: 'https://music.163.com/',
-      Cookie: process.env.NETEASE_COOKIE || 'os=pc',
+  const res = await fetchRateLimited(
+    `https://music.163.com/api/album/${encodeURIComponent(neteaseAlbumId)}`,
+    {
+      headers: {
+        Referer: 'https://music.163.com/',
+        Cookie: process.env.NETEASE_COOKIE || 'os=pc',
+      },
     },
-  })
+    timeoutMs
+  )
   if (!res.ok) return null
   const json = await res.json()
   return json?.album ? json : null
@@ -221,26 +244,30 @@ async function doubanFetchAlbum(title, artist) {
   return { subjectUrl: subject.url, rating, description: desc ? limitText(desc, 900) : null }
 }
 
-async function neteaseArtistDesc(artistId) {
+async function neteaseArtistDesc(artistId, timeoutMs = 9000) {
   if (NETEASE_API_BASE_URL) {
     const u = new URL(`${NETEASE_API_BASE_URL}/artist/desc`)
     u.searchParams.set('id', String(artistId))
     const res = await fetchRateLimited(
       u.toString(),
       { headers: NETEASE_API_COOKIE ? { Cookie: NETEASE_API_COOKIE } : {} },
-      9000
+      timeoutMs
     )
     if (!res.ok) return null
     const json = await res.json()
     return json && typeof json === 'object' ? json : null
   }
 
-  const res = await fetchRateLimited(`https://music.163.com/api/artist/desc?id=${encodeURIComponent(artistId)}`, {
-    headers: {
-      Referer: 'https://music.163.com/',
-      Cookie: process.env.NETEASE_COOKIE || 'os=pc',
+  const res = await fetchRateLimited(
+    `https://music.163.com/api/artist/desc?id=${encodeURIComponent(artistId)}`,
+    {
+      headers: {
+        Referer: 'https://music.163.com/',
+        Cookie: process.env.NETEASE_COOKIE || 'os=pc',
+      },
     },
-  })
+    timeoutMs
+  )
   if (!res.ok) return null
   const json = await res.json()
   return json && typeof json === 'object' ? json : null
@@ -255,7 +282,7 @@ function formatDuration(ms) {
   return `${m}:${String(s).padStart(2, '0')}`
 }
 
-async function neteaseArtistDetail(artistId) {
+async function neteaseArtistDetail(artistId, timeoutMs = 9000) {
   if (NETEASE_API_BASE_URL) {
     const tryUrls = [
       (() => {
@@ -274,7 +301,7 @@ async function neteaseArtistDetail(artistId) {
       const res = await fetchRateLimited(
         url,
         { headers: NETEASE_API_COOKIE ? { Cookie: NETEASE_API_COOKIE } : {} },
-        9000
+        timeoutMs
       )
       if (!res.ok) continue
       const json = await res.json()
@@ -283,18 +310,22 @@ async function neteaseArtistDetail(artistId) {
     return null
   }
 
-  const res = await fetchRateLimited(`https://music.163.com/api/artist/${encodeURIComponent(artistId)}`, {
-    headers: {
-      Referer: 'https://music.163.com/',
-      Cookie: process.env.NETEASE_COOKIE || 'os=pc',
+  const res = await fetchRateLimited(
+    `https://music.163.com/api/artist/${encodeURIComponent(artistId)}`,
+    {
+      headers: {
+        Referer: 'https://music.163.com/',
+        Cookie: process.env.NETEASE_COOKIE || 'os=pc',
+      },
     },
-  })
+    timeoutMs
+  )
   if (!res.ok) return null
   const json = await res.json()
   return json && typeof json === 'object' ? json : null
 }
 
-async function neteaseAlbumComments(neteaseAlbumId, limit = 12) {
+async function neteaseAlbumComments(neteaseAlbumId, limit = 12, timeoutMs = 9000) {
   if (NETEASE_API_BASE_URL) {
     const u = new URL(`${NETEASE_API_BASE_URL}/comment/album`)
     u.searchParams.set('id', String(neteaseAlbumId))
@@ -303,7 +334,7 @@ async function neteaseAlbumComments(neteaseAlbumId, limit = 12) {
     const res = await fetchRateLimited(
       u.toString(),
       { headers: NETEASE_API_COOKIE ? { Cookie: NETEASE_API_COOKIE } : {} },
-      9000
+      timeoutMs
     )
     if (!res.ok) return null
     const json = await res.json()
@@ -312,12 +343,16 @@ async function neteaseAlbumComments(neteaseAlbumId, limit = 12) {
 
   const rid = `R_AL_3_${String(neteaseAlbumId)}`
   const url = `https://music.163.com/api/v1/resource/comments/${encodeURIComponent(rid)}?limit=${encodeURIComponent(limit)}&offset=0`
-  const res = await fetchRateLimited(url, {
-    headers: {
-      Referer: 'https://music.163.com/',
-      Cookie: process.env.NETEASE_COOKIE || 'os=pc',
+  const res = await fetchRateLimited(
+    url,
+    {
+      headers: {
+        Referer: 'https://music.163.com/',
+        Cookie: process.env.NETEASE_COOKIE || 'os=pc',
+      },
     },
-  }, 9000)
+    timeoutMs
+  )
   if (!res.ok) return null
   const json = await res.json()
   return json && typeof json === 'object' ? json : null
@@ -442,16 +477,30 @@ export async function GET(request) {
   let doubanRating = null
   const platforms = []
 
+  const neteaseTimeoutMs = refresh ? 14000 : 9000
+
   try {
     const neteaseAlbumId = albumRow?.netease_album_id
       ? String(albumRow.netease_album_id)
-      : await neteaseSearchAlbumId(albumRow.title, albumRow.artist)
+      : await withRetry(() => neteaseSearchAlbumId(albumRow.title, albumRow.artist, neteaseTimeoutMs), {
+          retries: 2,
+          baseDelayMs: 450,
+        }).catch(() => null)
 
     if (neteaseAlbumId) {
       neteaseAlbumIdUsed = String(neteaseAlbumId)
+
+      if (!albumRow?.netease_album_id) {
+        try {
+          await supabase.from('albums').update({ netease_album_id: neteaseAlbumIdUsed }).eq('id', albumRow.id)
+        } catch {}
+      }
+
       platforms.push('网易云音乐')
       sources.push({ name: 'Netease', url: `https://music.163.com/#/album?id=${neteaseAlbumIdUsed}` })
-      const detail = await neteaseAlbumDetail(neteaseAlbumIdUsed)
+      const detail = await withRetry(() => neteaseAlbumDetail(neteaseAlbumIdUsed, neteaseTimeoutMs), { retries: 2, baseDelayMs: 450 }).catch(
+        () => null
+      )
       const a = detail?.album
       if (a) {
         if (!coverImageUrl && a.picUrl) coverImageUrl = a.picUrl
@@ -488,7 +537,9 @@ export async function GET(request) {
 
         const artistId = a.artist?.id
         if (artistId) {
-          const desc = await neteaseArtistDesc(String(artistId))
+          const desc = await withRetry(() => neteaseArtistDesc(String(artistId), neteaseTimeoutMs), { retries: 1, baseDelayMs: 450 }).catch(
+            () => null
+          )
           const brief = stripHtml(desc?.briefDesc)
           const intro = Array.isArray(desc?.introduction)
             ? desc.introduction.map((x) => stripHtml(x?.txt)).filter(Boolean).join('\n\n')
@@ -496,14 +547,18 @@ export async function GET(request) {
           const neteaseBio = [brief, intro].filter(Boolean).join('\n\n')
           artistBio = neteaseBio || artistBio
 
-          const artistDetail = await neteaseArtistDetail(String(artistId))
+          const artistDetail = await withRetry(() => neteaseArtistDetail(String(artistId), neteaseTimeoutMs), { retries: 1, baseDelayMs: 450 }).catch(
+            () => null
+          )
           const img = artistDetail?.artist?.picUrl || artistDetail?.artist?.img1v1Url || null
           if (img && !artistImageUrl) artistImageUrl = String(img)
         }
       }
 
       if (!mediaReviews) {
-        const c = await neteaseAlbumComments(neteaseAlbumIdUsed).catch(() => null)
+        const c = await withRetry(() => neteaseAlbumComments(neteaseAlbumIdUsed, 12, neteaseTimeoutMs), { retries: 1, baseDelayMs: 450 }).catch(
+          () => null
+        )
         const summary = c ? summarizeNeteaseComments(c) : null
         if (summary) {
           mediaReviews = `${summary}\n来源：https://music.163.com/#/album?id=${neteaseAlbumIdUsed}`
