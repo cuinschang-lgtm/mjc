@@ -354,13 +354,56 @@ export default function LibraryPage() {
               {t('library.searchButton')}
             </Link>
           )}
+          {process.env.NODE_ENV !== 'production' && collections.length === 0 && (
+            <div className="mt-10 relative z-10 w-full max-w-md">
+              <div className="mx-auto w-56">
+                <div
+                  data-tour="album-cover"
+                  className="aspect-square rounded-2xl overflow-hidden relative bg-white/5 border border-white/10 cursor-pointer hover:border-accent/30 transition-colors flex flex-col items-center justify-center gap-2"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    try {
+                      sessionStorage.setItem('nav:from', 'library')
+                    } catch {}
+                    router.push('/album/demo')
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      try {
+                        sessionStorage.setItem('nav:from', 'library')
+                      } catch {}
+                      router.push('/album/demo')
+                    }
+                  }}
+                >
+                  <Music size={36} className="text-secondary/35" />
+                  <div className="text-xs text-secondary/75 font-bold">示例专辑</div>
+                  <div className="text-[10px] text-secondary/45 font-bold tracking-widest uppercase">
+                    Tour Preview
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8">
           {sortedCollections.map((item) => {
              return (
-              <div key={item.id} className="group relative flex flex-col">
+              <div 
+                key={item.id} 
+                className="group relative flex flex-col"
+                onMouseEnter={() => {
+                  // Prefetch album details API for snappier navigation
+                  if (item.album_id) {
+                    const url = `/api/album-details?albumId=${encodeURIComponent(item.album_id)}`
+                    fetch(url, { priority: 'low' }).catch(() => {})
+                  }
+                }}
+              >
                 <div
+                  data-tour="album-cover"
                   className="aspect-square rounded-2xl overflow-hidden mb-4 relative bg-card shadow-lg border border-white/5 group-hover:border-accent/30 group-hover:shadow-card-hover transition-all duration-500 group-hover:-translate-y-2 cursor-pointer"
                   role="button"
                   tabIndex={0}
