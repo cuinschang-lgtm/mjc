@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Search as SearchIcon, Plus, Check, Loader2, ExternalLink, Star } from 'lucide-react'
 import { supabase } from '@/lib/supabaseBrowser'
 import { useRouter } from 'next/navigation'
@@ -11,6 +11,7 @@ export default function SearchPage() {
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
   const [addingId, setAddingId] = useState(null)
+  const inputRef = useRef(null)
   const router = useRouter()
   const { t } = useLanguage()
 
@@ -23,6 +24,41 @@ export default function SearchPage() {
         if (Array.isArray(s.results) && s.results.length) setResults(s.results)
       }
     } catch {}
+  }, [])
+
+  useEffect(() => {
+    const onEvt = async (e) => {
+      const detail = e?.detail || {}
+      if (detail.type !== 'search:prefill') return
+      const term = String(detail.term || '').trim()
+      if (!term) return
+      setQuery(term)
+      try {
+        inputRef.current?.focus()
+      } catch {}
+
+      try {
+        setLoading(true)
+        setResults([])
+        const res = await fetch(`/api/search?term=${encodeURIComponent(term)}`)
+        const data = await res.json()
+        const next = Array.isArray(data?.results)
+          ? data.results.map((album) => ({
+              ...album,
+              mockScore: album.mockScore || (Math.random() * (9.8 - 8.0) + 8.0).toFixed(1),
+            }))
+          : []
+        setResults(next)
+        window.dispatchEvent(new CustomEvent('pickup:onboarding', { detail: { type: 'search:results_ready', count: next.length } }))
+      } catch {
+        window.dispatchEvent(new CustomEvent('pickup:onboarding', { detail: { type: 'search:results_ready', count: 0 } }))
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    window.addEventListener('pickup:onboarding', onEvt)
+    return () => window.removeEventListener('pickup:onboarding', onEvt)
   }, [])
 
   const searchAlbums = async (e) => {
@@ -39,6 +75,9 @@ export default function SearchPage() {
       
       if (!data.results || data.results.length === 0) {
         setResults([])
+        try {
+          window.dispatchEvent(new CustomEvent('pickup:onboarding', { detail: { type: 'search:results_ready', count: 0 } }))
+        } catch {}
         return
       }
 
@@ -50,6 +89,9 @@ export default function SearchPage() {
       }))
       
       setResults(resultsWithScores)
+      try {
+        window.dispatchEvent(new CustomEvent('pickup:onboarding', { detail: { type: 'search:results_ready', count: resultsWithScores.length } }))
+      } catch {}
     } catch (error) {
       console.error('Search failed:', error)
     } finally {
@@ -62,7 +104,7 @@ export default function SearchPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        router.push('/auth')
+        router.push(`/auth?mode=signup&returnTo=${encodeURIComponent('/search')}`)
         return
       }
 
@@ -104,6 +146,15 @@ export default function SearchPage() {
 
       if (existingAlbum) {
         albumId = existingAlbum.id
+        if (neteaseId) {
+          try {
+            await supabase
+              .from('albums')
+              .update({ netease_album_id: neteaseId })
+              .eq('id', albumId)
+              .is('netease_album_id', null)
+          } catch {}
+        }
       } else {
         // Prepare cover URL safely
         let coverUrl = album.artworkUrl100
@@ -129,6 +180,21 @@ export default function SearchPage() {
           insertError = r1.error
         } catch (e) {
           insertError = e
+        }
+        if (insertError) {
+          if (neteaseId) {
+            try {
+              const q = await supabase
+                .from('albums')
+                .select('id')
+                .eq('netease_album_id', neteaseId)
+                .maybeSingle()
+              if (!q.error && q.data?.id) {
+                newAlbum = q.data
+                insertError = null
+              }
+            } catch {}
+          }
         }
         if (insertError) {
           try {
@@ -176,14 +242,18 @@ export default function SearchPage() {
       if (collectionError) {
         if (collectionError.code === '23505') { // Unique violation
           alert(t('search.alreadyExists'))
+          try {
+            window.dispatchEvent(new CustomEvent('pickup:onboarding', { detail: { type: 'search:album_added', albumId } }))
+          } catch {}
         } else {
           console.error('Collection insert error:', collectionError)
           throw new Error(`${t('search.errorAdd')}: ${collectionError.message}`)
         }
       } else {
-         // Success - Optional: Show a toast or small notification
-         // For now, just silent success or console log
-         console.log(t('search.successAdd'))
+        console.log(t('search.successAdd'))
+        try {
+          window.dispatchEvent(new CustomEvent('pickup:onboarding', { detail: { type: 'search:album_added', albumId } }))
+        } catch {}
       }
 
     } catch (error) {
@@ -300,7 +370,9 @@ export default function SearchPage() {
           <div className="absolute inset-0 bg-gradient-to-r from-accent to-orange-500 rounded-full blur-xl opacity-20 group-hover:opacity-30 transition-opacity duration-500" />
           <div className="relative flex items-center">
              <SearchIcon className="absolute left-6 text-secondary group-focus-within:text-accent transition-colors" size={24} />
-             <input
+            <input
+              ref={inputRef}
+              data-tour="search-input"
                type="text"
                value={query}
                onChange={(e) => setQuery(e.target.value)}
@@ -351,6 +423,7 @@ export default function SearchPage() {
               {/* Action Overlay */}
               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-center gap-3 backdrop-blur-[4px] p-6">
                  <button 
+                   data-tour={index === 0 ? 'search-want' : undefined}
                    onClick={(e) => {
                      e.stopPropagation()
                      addToLibrary(album, 'want_to_listen')
