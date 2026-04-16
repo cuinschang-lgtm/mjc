@@ -354,47 +354,24 @@ export default function LibraryPage() {
               {t('library.searchButton')}
             </Link>
           )}
-          {process.env.NODE_ENV !== 'production' && collections.length === 0 && (
-            <div className="mt-10 relative z-10 w-full max-w-md">
-              <div className="mx-auto w-56">
-                <div
-                  data-tour="album-cover"
-                  className="aspect-square rounded-2xl overflow-hidden relative bg-white/5 border border-white/10 cursor-pointer hover:border-accent/30 transition-colors flex flex-col items-center justify-center gap-2"
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => {
-                    try {
-                      sessionStorage.setItem('nav:from', 'library')
-                    } catch {}
-                    router.push('/album/demo')
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      try {
-                        sessionStorage.setItem('nav:from', 'library')
-                      } catch {}
-                      router.push('/album/demo')
-                    }
-                  }}
-                >
-                  <Music size={36} className="text-secondary/35" />
-                  <div className="text-xs text-secondary/75 font-bold">示例专辑</div>
-                  <div className="text-[10px] text-secondary/45 font-bold tracking-widest uppercase">
-                    Tour Preview
-                  </div>
-                </div>
-              </div>
-            </div>
+          {collections.length === 0 && (
+            <div className="mt-10 relative z-10 w-full max-w-md" />
           )}
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8">
-          {sortedCollections.map((item) => {
+          {sortedCollections.map((item, idx) => {
              return (
               <div 
                 key={item.id} 
+                data-tour={idx === 0 ? 'library-album-card' : undefined}
                 className="group relative flex flex-col"
                 onMouseEnter={() => {
+                  if (idx === 0) {
+                    try {
+                      window.dispatchEvent(new CustomEvent('pickup:onboarding', { detail: { type: 'library:hovered' } }))
+                    } catch {}
+                  }
                   // Prefetch album details API for snappier navigation
                   if (item.album_id) {
                     const url = `/api/album-details?albumId=${encodeURIComponent(item.album_id)}`
@@ -403,7 +380,7 @@ export default function LibraryPage() {
                 }}
               >
                 <div
-                  data-tour="album-cover"
+                  data-tour={idx === 0 ? 'library-album-cover' : undefined}
                   className="aspect-square rounded-2xl overflow-hidden mb-4 relative bg-card shadow-lg border border-white/5 group-hover:border-accent/30 group-hover:shadow-card-hover transition-all duration-500 group-hover:-translate-y-2 cursor-pointer"
                   role="button"
                   tabIndex={0}
@@ -427,6 +404,7 @@ export default function LibraryPage() {
                   
                   {/* Overlay on Hover - Clean Minimalist */}
                   <div 
+                    data-tour={idx === 0 ? 'library-album-actions' : undefined}
                     className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-center gap-3 backdrop-blur-[4px] p-6"
                     onClick={(e) => {
                       if (e.target === e.currentTarget) {
@@ -503,6 +481,7 @@ export default function LibraryPage() {
                      
                     <div className="w-full grid grid-cols-2 gap-3 mt-2">
                       <button 
+                        data-tour={idx === 0 ? 'library-edit-tags' : undefined}
                         onClick={(e) => {
                           e.stopPropagation()
                           setEditingItem(item)
