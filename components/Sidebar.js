@@ -76,8 +76,8 @@ const Sidebar = () => {
   }
 
   const navItems = [
-    { name: t('sidebar.myLibrary'), href: '/', icon: Library },
-    { name: t('sidebar.search'), href: '/search', icon: Search },
+    { name: t('sidebar.myLibrary'), href: '/', icon: Library, tour: 'nav-library' },
+    { name: t('sidebar.search'), href: '/search', icon: Search, tour: 'nav-search' },
     { name: t('sidebar.charts'), href: '/charts', icon: BarChart3 },
     ...(isAdmin ? [{ name: t('sidebar.adminAlbums'), href: '/albums', icon: Shield }] : []),
     { name: t('sidebar.personalCenter'), href: '/me', icon: User },
@@ -105,6 +105,7 @@ const Sidebar = () => {
             <Link 
               key={item.href} 
               href={item.href}
+              data-tour={item.tour}
               className={cn(
                 "flex items-center gap-4 px-4 py-3.5 rounded-full transition-all duration-300 group cursor-pointer relative overflow-hidden",
                 isActive 
@@ -156,7 +157,8 @@ const Sidebar = () => {
       ) : (
         <div className="pt-8 border-t border-white/5">
            <Link 
-            href="/auth"
+            data-tour="signin"
+            href={`/auth?returnTo=${encodeURIComponent('/')}`}
             className="flex items-center justify-center gap-2 px-4 py-3 w-full bg-white text-black hover:bg-gray-200 rounded-full transition-all text-sm font-bold shadow-lg hover:shadow-xl hover:-translate-y-0.5"
           >
             {t('sidebar.signIn')}
