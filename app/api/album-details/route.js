@@ -35,100 +35,7 @@ function safeId(id) {
   return String(id || '').replace(/[^a-zA-Z0-9_-]/g, '')
 }
 
-<<<<<<< HEAD
-async function fetchRateLimited(url, opts = {}, timeoutMs = 9000) {
-=======
-function normalizeText(s) {
-  return String(s || '')
-    .toLowerCase()
-    .replace(/[\u2018\u2019\u201c\u201d]/g, '')
-    .replace(/[\(\)\[\]\{\}]/g, ' ')
-    .replace(/[^\p{L}\p{N}]+/gu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function hasForbidden(title, artist) {
-  const t = normalizeText(title)
-  const a = normalizeText(artist)
-  const forbidden = [
-    'tribute',
-    'cover',
-    'covers',
-    'karaoke',
-    'lofi',
-    'lullaby',
-    'piano',
-    'instrumental',
-    'the music of',
-    'various artists',
-    '致敬',
-    '翻唱',
-    '卡拉 ok',
-    '卡拉ok',
-    '纯音乐',
-    '伴奏',
-    '合集',
-    '精选',
-    '纪念',
-  ]
-  return forbidden.some((w) => t.includes(w) || a.includes(w))
-}
-
-function scoreAlbumCandidate(targetTitle, targetArtist, candTitle, candArtist) {
-  const qt = normalizeText(targetTitle)
-  const qa = normalizeText(targetArtist)
-  const ct = normalizeText(candTitle)
-  const ca = normalizeText(candArtist)
-  if (!qt || !qa || !ct || !ca) return -1
-
-  const pool = `${ct} ${ca}`.trim()
-  const tokens = qt.split(' ').filter(Boolean)
-  const artistTokens = qa.split(' ').filter(Boolean)
-
-  let score = 0
-  if (ct === qt) score += 120
-  if (ca === qa) score += 90
-  if (ct.includes(qt) || qt.includes(ct)) score += 40
-  if (ca.includes(qa) || qa.includes(ca)) score += 35
-
-  const tokenHits = tokens.filter((t) => pool.includes(t)).length
-  const artistHits = artistTokens.filter((t) => pool.includes(t)).length
-  const coverage = tokens.length ? tokenHits / tokens.length : 0
-  const artistCoverage = artistTokens.length ? artistHits / artistTokens.length : 0
-  score += Math.round(60 * coverage)
-  score += Math.round(45 * artistCoverage)
-
-  if (tokenHits > 0 && artistHits > 0) score += 25
-  if (hasForbidden(candTitle, candArtist)) score -= 140
-  return score
-}
-
-function pickBestNeteaseAlbumId(albums, targetTitle, targetArtist) {
-  const list = Array.isArray(albums) ? albums : []
-  const scored = list
-    .map((a) => {
-      const id = a?.id == null ? null : String(a.id)
-      const name = a?.name ? String(a.name) : ''
-      const artistName = a?.artist?.name ? String(a.artist.name) : a?.artistName ? String(a.artistName) : ''
-      return { id, name, artistName, s: scoreAlbumCandidate(targetTitle, targetArtist, name, artistName) }
-    })
-    .filter((x) => x.id && x.s >= 0)
-    .sort((a, b) => b.s - a.s)
-
-  const best = scored[0]
-  if (!best) return null
-  
-  // If we have a very strong match (>110), take it.
-  // If it's a decent match (>80) and it's the only one or significantly better than others, take it.
-  if (best.s >= 110) return best.id
-  if (best.s >= 80 && (scored.length === 1 || best.s - (scored[1]?.s || 0) > 20)) return best.id
-  
-  return null
-}
-
-async function fetchRateLimited(url, opts = {}, timeoutMs = 12000, retries = 1) {
->>>>>>> b7cf2365 (feat: first-time onboarding tour with driver.js)
+async function fetchRateLimited(url, opts = {}, timeoutMs = 9000, retries = 2) {
   const u = new URL(url)
   const host = u.host
 
@@ -170,7 +77,6 @@ async function fetchRateLimited(url, opts = {}, timeoutMs = 12000, retries = 1) 
   }
 }
 
-<<<<<<< HEAD
 async function withRetry(fn, { retries = 2, baseDelayMs = 600 } = {}) {
   let lastErr = null
   for (let i = 0; i <= retries; i += 1) {
@@ -186,8 +92,6 @@ async function withRetry(fn, { retries = 2, baseDelayMs = 600 } = {}) {
   throw lastErr
 }
 
-=======
->>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
 async function ensureCacheDir() {
   await fs.mkdir(CACHE_DIR, { recursive: true })
 }
@@ -210,15 +114,10 @@ async function writeCache(albumId, payload) {
   await fs.writeFile(p, JSON.stringify(payload, null, 2), 'utf8')
 }
 
-<<<<<<< HEAD
 async function neteaseSearchAlbumId(title, artist, timeoutMs = 9000) {
-=======
-async function neteaseSearchAlbumId(title, artist) {
->>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
   const q = [title, artist].filter(Boolean).join(' ').trim()
   if (!q) return null
 
-<<<<<<< HEAD
   if (NETEASE_API_BASE_URL) {
     const u = new URL(`${NETEASE_API_BASE_URL}/search`)
     u.searchParams.set('keywords', q)
@@ -227,11 +126,7 @@ async function neteaseSearchAlbumId(title, artist) {
     const res = await fetchRateLimited(
       u.toString(),
       { headers: NETEASE_API_COOKIE ? { Cookie: NETEASE_API_COOKIE } : {} },
-<<<<<<< HEAD
       timeoutMs
-=======
-      9000
->>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
     )
     if (!res.ok) return null
     const json = await res.json()
@@ -241,7 +136,6 @@ async function neteaseSearchAlbumId(title, artist) {
   }
 
   const body = `s=${encodeURIComponent(q)}&type=10&offset=0&total=true&limit=5`
-<<<<<<< HEAD
   const res = await fetchRateLimited(
     'https://music.163.com/api/search/get/web?csrf_token=',
     {
@@ -255,90 +149,27 @@ async function neteaseSearchAlbumId(title, artist) {
     },
     timeoutMs
   )
-=======
-  const res = await fetchRateLimited('https://music.163.com/api/search/get/web?csrf_token=', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Referer: 'https://music.163.com/',
-      Cookie: process.env.NETEASE_COOKIE || 'os=pc',
-    },
-    body,
-  })
->>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
   if (!res.ok) return null
   const json = await res.json()
   const albums = json?.result?.albums
   if (!Array.isArray(albums) || albums.length === 0) return null
   return albums[0]?.id ? String(albums[0].id) : null
-=======
-  const fetchSearch = async (query) => {
-    if (NETEASE_API_BASE_URL) {
-      const u = new URL(`${NETEASE_API_BASE_URL}/search`)
-      u.searchParams.set('keywords', query)
-      u.searchParams.set('type', '10')
-      u.searchParams.set('limit', '15')
-      const res = await fetchRateLimited(
-        u.toString(),
-        { headers: NETEASE_API_COOKIE ? { Cookie: NETEASE_API_COOKIE } : {} },
-        12000
-      )
-      if (!res.ok) return null
-      return await res.json()
-    }
-    const body = `s=${encodeURIComponent(query)}&type=10&offset=0&total=true&limit=15`
-    const res = await fetchRateLimited('https://music.163.com/api/search/get/web?csrf_token=', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Referer: 'https://music.163.com/',
-        Cookie: process.env.NETEASE_COOKIE || 'os=pc',
-      },
-      body,
-    })
-    if (!res.ok) return null
-    return await res.json()
-  }
-
-  // 1. Primary search with Title + Artist
-  let json = await fetchSearch(q)
-  let bestId = pickBestNeteaseAlbumId(json?.result?.albums, title, artist)
-  if (bestId) return bestId
-
-  // 2. Fallback search with Title only if primary fails
-  if (title && q !== title) {
-    json = await fetchSearch(title)
-    bestId = pickBestNeteaseAlbumId(json?.result?.albums, title, artist)
-    if (bestId) return bestId
-  }
-
-  return null
->>>>>>> b7cf2365 (feat: first-time onboarding tour with driver.js)
 }
 
-<<<<<<< HEAD
 async function neteaseAlbumDetail(neteaseAlbumId, timeoutMs = 9000) {
-=======
-async function neteaseAlbumDetail(neteaseAlbumId) {
->>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
   if (NETEASE_API_BASE_URL) {
     const u = new URL(`${NETEASE_API_BASE_URL}/album`)
     u.searchParams.set('id', String(neteaseAlbumId))
     const res = await fetchRateLimited(
       u.toString(),
       { headers: NETEASE_API_COOKIE ? { Cookie: NETEASE_API_COOKIE } : {} },
-<<<<<<< HEAD
       timeoutMs
-=======
-      9000
->>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
     )
     if (!res.ok) return null
     const json = await res.json()
     return json?.album ? json : null
   }
 
-<<<<<<< HEAD
   const res = await fetchRateLimited(
     `https://music.163.com/api/album/${encodeURIComponent(neteaseAlbumId)}`,
     {
@@ -349,14 +180,6 @@ async function neteaseAlbumDetail(neteaseAlbumId) {
     },
     timeoutMs
   )
-=======
-  const res = await fetchRateLimited(`https://music.163.com/api/album/${encodeURIComponent(neteaseAlbumId)}`, {
-    headers: {
-      Referer: 'https://music.163.com/',
-      Cookie: process.env.NETEASE_COOKIE || 'os=pc',
-    },
-  })
->>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
   if (!res.ok) return null
   const json = await res.json()
   return json?.album ? json : null
@@ -436,29 +259,20 @@ async function doubanFetchAlbum(title, artist) {
   return { subjectUrl: subject.url, rating, description: desc ? limitText(desc, 900) : null }
 }
 
-<<<<<<< HEAD
 async function neteaseArtistDesc(artistId, timeoutMs = 9000) {
-=======
-async function neteaseArtistDesc(artistId) {
->>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
   if (NETEASE_API_BASE_URL) {
     const u = new URL(`${NETEASE_API_BASE_URL}/artist/desc`)
     u.searchParams.set('id', String(artistId))
     const res = await fetchRateLimited(
       u.toString(),
       { headers: NETEASE_API_COOKIE ? { Cookie: NETEASE_API_COOKIE } : {} },
-<<<<<<< HEAD
       timeoutMs
-=======
-      9000
->>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
     )
     if (!res.ok) return null
     const json = await res.json()
     return json && typeof json === 'object' ? json : null
   }
 
-<<<<<<< HEAD
   const res = await fetchRateLimited(
     `https://music.163.com/api/artist/desc?id=${encodeURIComponent(artistId)}`,
     {
@@ -469,14 +283,6 @@ async function neteaseArtistDesc(artistId) {
     },
     timeoutMs
   )
-=======
-  const res = await fetchRateLimited(`https://music.163.com/api/artist/desc?id=${encodeURIComponent(artistId)}`, {
-    headers: {
-      Referer: 'https://music.163.com/',
-      Cookie: process.env.NETEASE_COOKIE || 'os=pc',
-    },
-  })
->>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
   if (!res.ok) return null
   const json = await res.json()
   return json && typeof json === 'object' ? json : null
@@ -491,11 +297,7 @@ function formatDuration(ms) {
   return `${m}:${String(s).padStart(2, '0')}`
 }
 
-<<<<<<< HEAD
 async function neteaseArtistDetail(artistId, timeoutMs = 9000) {
-=======
-async function neteaseArtistDetail(artistId) {
->>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
   if (NETEASE_API_BASE_URL) {
     const tryUrls = [
       (() => {
@@ -514,11 +316,7 @@ async function neteaseArtistDetail(artistId) {
       const res = await fetchRateLimited(
         url,
         { headers: NETEASE_API_COOKIE ? { Cookie: NETEASE_API_COOKIE } : {} },
-<<<<<<< HEAD
         timeoutMs
-=======
-        9000
->>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
       )
       if (!res.ok) continue
       const json = await res.json()
@@ -527,7 +325,6 @@ async function neteaseArtistDetail(artistId) {
     return null
   }
 
-<<<<<<< HEAD
   const res = await fetchRateLimited(
     `https://music.163.com/api/artist/${encodeURIComponent(artistId)}`,
     {
@@ -538,24 +335,12 @@ async function neteaseArtistDetail(artistId) {
     },
     timeoutMs
   )
-=======
-  const res = await fetchRateLimited(`https://music.163.com/api/artist/${encodeURIComponent(artistId)}`, {
-    headers: {
-      Referer: 'https://music.163.com/',
-      Cookie: process.env.NETEASE_COOKIE || 'os=pc',
-    },
-  })
->>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
   if (!res.ok) return null
   const json = await res.json()
   return json && typeof json === 'object' ? json : null
 }
 
-<<<<<<< HEAD
 async function neteaseAlbumComments(neteaseAlbumId, limit = 12, timeoutMs = 9000) {
-=======
-async function neteaseAlbumComments(neteaseAlbumId, limit = 12) {
->>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
   if (NETEASE_API_BASE_URL) {
     const u = new URL(`${NETEASE_API_BASE_URL}/comment/album`)
     u.searchParams.set('id', String(neteaseAlbumId))
@@ -564,11 +349,7 @@ async function neteaseAlbumComments(neteaseAlbumId, limit = 12) {
     const res = await fetchRateLimited(
       u.toString(),
       { headers: NETEASE_API_COOKIE ? { Cookie: NETEASE_API_COOKIE } : {} },
-<<<<<<< HEAD
       timeoutMs
-=======
-      9000
->>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
     )
     if (!res.ok) return null
     const json = await res.json()
@@ -577,7 +358,6 @@ async function neteaseAlbumComments(neteaseAlbumId, limit = 12) {
 
   const rid = `R_AL_3_${String(neteaseAlbumId)}`
   const url = `https://music.163.com/api/v1/resource/comments/${encodeURIComponent(rid)}?limit=${encodeURIComponent(limit)}&offset=0`
-<<<<<<< HEAD
   const res = await fetchRateLimited(
     url,
     {
@@ -588,14 +368,6 @@ async function neteaseAlbumComments(neteaseAlbumId, limit = 12) {
     },
     timeoutMs
   )
-=======
-  const res = await fetchRateLimited(url, {
-    headers: {
-      Referer: 'https://music.163.com/',
-      Cookie: process.env.NETEASE_COOKIE || 'os=pc',
-    },
-  }, 9000)
->>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
   if (!res.ok) return null
   const json = await res.json()
   return json && typeof json === 'object' ? json : null
@@ -720,30 +492,7 @@ export async function GET(request) {
   let doubanRating = null
   const platforms = []
 
-<<<<<<< HEAD
-<<<<<<< HEAD
   const neteaseTimeoutMs = refresh ? 14000 : 9000
-=======
-  // Apply Netease Results
-  if (neteaseRes) {
-    const { nid, detail, artistDesc, artistDetail, comments } = neteaseRes
-    neteaseAlbumIdUsed = nid
-    
-    // Auto-persist Netease ID if it was missing in DB to ensure "one-time success" for future requests
-    if (!albumRow.netease_album_id && nid) {
-      supabase
-        .from('albums')
-        .update({ netease_album_id: nid })
-        .eq('id', albumId)
-        .then(({ error }) => {
-          if (error) console.error('Failed to persist netease_album_id:', error)
-        })
-    }
-
-    const a = detail.album
-    platforms.push('网易云音乐')
-    sources.push({ name: 'Netease', url: `https://music.163.com/#/album?id=${nid}` })
->>>>>>> b7cf2365 (feat: first-time onboarding tour with driver.js)
 
   try {
     const neteaseAlbumId = albumRow?.netease_album_id
@@ -767,18 +516,6 @@ export async function GET(request) {
       const detail = await withRetry(() => neteaseAlbumDetail(neteaseAlbumIdUsed, neteaseTimeoutMs), { retries: 2, baseDelayMs: 450 }).catch(
         () => null
       )
-=======
-  try {
-    const neteaseAlbumId = albumRow?.netease_album_id
-      ? String(albumRow.netease_album_id)
-      : await neteaseSearchAlbumId(albumRow.title, albumRow.artist)
-
-    if (neteaseAlbumId) {
-      neteaseAlbumIdUsed = String(neteaseAlbumId)
-      platforms.push('网易云音乐')
-      sources.push({ name: 'Netease', url: `https://music.163.com/#/album?id=${neteaseAlbumIdUsed}` })
-      const detail = await neteaseAlbumDetail(neteaseAlbumIdUsed)
->>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
       const a = detail?.album
       if (a) {
         if (!coverImageUrl && a.picUrl) coverImageUrl = a.picUrl
@@ -815,13 +552,9 @@ export async function GET(request) {
 
         const artistId = a.artist?.id
         if (artistId) {
-<<<<<<< HEAD
           const desc = await withRetry(() => neteaseArtistDesc(String(artistId), neteaseTimeoutMs), { retries: 1, baseDelayMs: 450 }).catch(
             () => null
           )
-=======
-          const desc = await neteaseArtistDesc(String(artistId))
->>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
           const brief = stripHtml(desc?.briefDesc)
           const intro = Array.isArray(desc?.introduction)
             ? desc.introduction.map((x) => stripHtml(x?.txt)).filter(Boolean).join('\n\n')
@@ -829,26 +562,18 @@ export async function GET(request) {
           const neteaseBio = [brief, intro].filter(Boolean).join('\n\n')
           artistBio = neteaseBio || artistBio
 
-<<<<<<< HEAD
           const artistDetail = await withRetry(() => neteaseArtistDetail(String(artistId), neteaseTimeoutMs), { retries: 1, baseDelayMs: 450 }).catch(
             () => null
           )
-=======
-          const artistDetail = await neteaseArtistDetail(String(artistId))
->>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
           const img = artistDetail?.artist?.picUrl || artistDetail?.artist?.img1v1Url || null
           if (img && !artistImageUrl) artistImageUrl = String(img)
         }
       }
 
       if (!mediaReviews) {
-<<<<<<< HEAD
         const c = await withRetry(() => neteaseAlbumComments(neteaseAlbumIdUsed, 12, neteaseTimeoutMs), { retries: 1, baseDelayMs: 450 }).catch(
           () => null
         )
-=======
-        const c = await neteaseAlbumComments(neteaseAlbumIdUsed).catch(() => null)
->>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
         const summary = c ? summarizeNeteaseComments(c) : null
         if (summary) {
           mediaReviews = `${summary}\n来源：https://music.163.com/#/album?id=${neteaseAlbumIdUsed}`

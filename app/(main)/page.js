@@ -354,7 +354,6 @@ export default function LibraryPage() {
               {t('library.searchButton')}
             </Link>
           )}
-<<<<<<< HEAD
           {collections.length === 0 && (
             <div className="mt-10 relative z-10 w-full max-w-md" />
           )}
@@ -381,20 +380,7 @@ export default function LibraryPage() {
                 }}
               >
                 <div
-<<<<<<< HEAD
                   data-tour={idx === 0 ? 'library-album-cover' : undefined}
-=======
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8">
-          {sortedCollections.map((item) => {
-             return (
-              <div key={item.id} className="group relative flex flex-col">
-                <div
->>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
-=======
-                  data-tour="album-cover"
->>>>>>> b7cf2365 (feat: first-time onboarding tour with driver.js)
                   className="aspect-square rounded-2xl overflow-hidden mb-4 relative bg-card shadow-lg border border-white/5 group-hover:border-accent/30 group-hover:shadow-card-hover transition-all duration-500 group-hover:-translate-y-2 cursor-pointer"
                   role="button"
                   tabIndex={0}
@@ -418,10 +404,7 @@ export default function LibraryPage() {
                   
                   {/* Overlay on Hover - Clean Minimalist */}
                   <div 
-<<<<<<< HEAD
                     data-tour={idx === 0 ? 'library-album-actions' : undefined}
-=======
->>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
                     className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-center gap-3 backdrop-blur-[4px] p-6"
                     onClick={(e) => {
                       if (e.target === e.currentTarget) {
@@ -498,10 +481,7 @@ export default function LibraryPage() {
                      
                     <div className="w-full grid grid-cols-2 gap-3 mt-2">
                       <button 
-<<<<<<< HEAD
                         data-tour={idx === 0 ? 'library-edit-tags' : undefined}
-=======
->>>>>>> 887dea10 (feat: 拾音/Pickup 准备上线)
                         onClick={(e) => {
                           e.stopPropagation()
                           setEditingItem(item)
