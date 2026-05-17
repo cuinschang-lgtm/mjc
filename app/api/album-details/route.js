@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { promises as fs } from 'fs'
 import path from 'path'
 import { createSupabaseServerClient } from '@/lib/supabaseServer'
+import { generateAlbumDetails, isDeepSeekConfigured } from '@/lib/deepseekService'
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
@@ -425,6 +426,93 @@ function summarizeNeteaseComments(payload) {
   return `网易云热评摘录：\n${lines.join('\n')}`
 }
 
+/**
+ * 解析 AI 生成的曲目列表
+ */
+function parseTracksFromAI(tracklistJson) {
+  if (!tracklistJson) return []
+  try {
+    const tracks = typeof tracklistJson === 'string' ? JSON.parse(tracklistJson) : tracklistJson
+    if (!Array.isArray(tracks)) return []
+
+    return tracks.map((t) => {
+      // 解析时长 "3:45" -> 毫秒
+      let durationMs = null
+      if (t.duration) {
+        const parts = String(t.duration).split(':')
+        if (parts.length === 2) {
+          const min = parseInt(parts[0], 10)
+          const sec = parseInt(parts[1], 10)
+          if (!isNaN(min) && !isNaN(sec)) {
+            durationMs = (min * 60 + sec) * 1000
+          }
+        }
+      }
+
+      return {
+        index: t.index || 0,
+        name: t.name || '未知曲目',
+        durationMs,
+        durationText: t.duration || null,
+        artists: null,
+        neteaseSongUrl: null,
+      }
+    })
+  } catch (e) {
+    console.error('Failed to parse AI tracklist:', e)
+    return []
+  }
+}
+
+/**
+ * 计算曲目总时长
+ */
+function calculateTotalDuration(tracks) {
+  if (!Array.isArray(tracks)) return null
+  return tracks.reduce((sum, t) => sum + (Number(t.durationMs) || 0), 0) || null
+}
+
+/**
+ * 异步生成 AI 内容（不阻塞响应）
+ */
+async function generateAlbumDetailsAsync(albumId, albumRow) {
+  if (!isDeepSeekConfigured()) {
+    console.log('DeepSeek not configured, skipping AI generation')
+    return
+  }
+
+  try {
+    console.log(`Starting AI generation for album ${albumId}`)
+    const aiData = await generateAlbumDetails({
+      title: albumRow.title,
+      artist: albumRow.artist,
+      releaseDate: albumRow.release_date,
+    })
+
+    const supabase = createSupabaseServerClient()
+    await supabase
+      .from('album_content_overrides')
+      .upsert(
+        {
+          album_id: albumId,
+          artist_bio: aiData.artistBio,
+          creation_background: aiData.creationBackground,
+          media_reviews: aiData.mediaReviews,
+          awards: aiData.awards,
+          tracklist_json: JSON.stringify(aiData.tracklist || []),
+          is_ai_generated: true,
+          ai_model: 'deepseek-chat',
+          ai_generated_at: new Date().toISOString(),
+        },
+        { onConflict: 'album_id' }
+      )
+
+    console.log(`AI generation completed for album ${albumId}`)
+  } catch (e) {
+    console.error('Async AI generation failed for album', albumId, e)
+  }
+}
+
 export async function GET(request) {
   const supabase = createSupabaseServerClient()
   const { searchParams } = new URL(request.url)
@@ -472,6 +560,69 @@ export async function GET(request) {
   }
   if (!albumRow) {
     return NextResponse.json({ error: 'album not found' }, { status: 404 })
+  }
+
+  // 1. 检查是否有 AI 生成的内容缓存
+  let aiContent = null
+  try {
+    const { data: aiData } = await supabase
+      .from('album_content_overrides')
+      .select('*')
+      .eq('album_id', albumId)
+      .maybeSingle()
+    aiContent = aiData
+  } catch (e) {
+    console.error('Failed to check AI content cache:', e)
+  }
+
+  // 2. 如果有 AI 生成的内容，直接返回
+  if (aiContent?.is_ai_generated) {
+    const aiTracks = parseTracksFromAI(aiContent.tracklist_json)
+    const aiDurationMs = calculateTotalDuration(aiTracks)
+
+    const aiData = {
+      basic: {
+        albumId: albumRow.id,
+        title: albumRow.title,
+        artistName: albumRow.artist,
+        releaseDate: albumRow.release_date ? String(albumRow.release_date) : null,
+        albumType: null,
+        description: albumRow.description || null,
+        genres: albumRow.genres || null,
+        galleryUrls: albumRow.gallery_urls || null,
+        platform: 'AI Enhanced',
+        platforms: ['AI Enhanced'],
+        publishCompany: null,
+        coverImageUrl: albumRow.cover_url || null,
+        artistImageUrl: null,
+        trackCount: aiTracks.length,
+        durationMs: aiDurationMs,
+        durationText: aiDurationMs ? formatDuration(aiDurationMs) : null,
+        tracks: aiTracks,
+        rating: null,
+        externalIds: { neteaseAlbumId: albumRow.netease_album_id },
+        sourceUrl: null,
+      },
+      content: {
+        artistBio: aiContent.artist_bio || null,
+        creationBackground: aiContent.creation_background || null,
+        mediaReviews: aiContent.media_reviews || null,
+        awards: aiContent.awards || null,
+      },
+      fetchedAt: aiContent.ai_generated_at || new Date().toISOString(),
+      cacheHit: true,
+      stale: false,
+      completeness: { basic: { filled: 5, total: 7 }, content: { filled: 4, total: 4 } },
+      sources: [{ name: 'AI Generated', model: aiContent.ai_model }],
+      aiGenerated: true,
+    }
+
+    // 缓存到本地文件
+    try {
+      await writeCache(albumId, { expiresAt: Date.now() + CACHE_TTL_MS, data: aiData })
+    } catch {}
+
+    return NextResponse.json(aiData, { status: 200 })
   }
 
   let sources = []
@@ -732,5 +883,14 @@ export async function GET(request) {
   try {
     await writeCache(albumId, { expiresAt: now + CACHE_TTL_MS, data })
   } catch {}
+
+  // 3. 如果 DeepSeek 已配置且无 AI 缓存，触发异步生成
+  if (isDeepSeekConfigured() && !aiContent?.is_ai_generated) {
+    // 异步生成，不阻塞响应
+    generateAlbumDetailsAsync(albumId, albumRow).catch((e) =>
+      console.error('Failed to trigger AI generation:', e)
+    )
+  }
+
   return NextResponse.json(data, { status: 200 })
 }

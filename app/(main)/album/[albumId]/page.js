@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Clock, ExternalLink, ImageOff, ListMusic, RefreshCw, Share2, Star, X } from 'lucide-react'
+import { ArrowLeft, Clock, ExternalLink, ImageOff, ListMusic, RefreshCw, Share2, Sparkles, Star, X } from 'lucide-react'
 import { cn } from '../../../../lib/utils'
 import { supabase } from '@/lib/supabase'
 import QRCode from 'qrcode'
@@ -504,9 +504,16 @@ export default function AlbumDetailPage() {
                 {data?.basic?.rating?.score ? (
                   <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-white/80 inline-flex items-center gap-2">
                     <Star size={14} className="text-accent" />
-                    豆瓣：{data.basic.rating.score} / {data.basic.rating.scale || 10}{data.basic.rating.votes ? `（${data.basic.rating.votes} 人）` : ''}
+                    豆瓣：{data.basic.rating.score} / {data.basic.rating.scale || 10}
+                    {data.basic.rating.votes ? `（${data.basic.rating.votes} 人）` : ''}
                   </span>
                 ) : null}
+                {data?.aiGenerated && (
+                  <span className="px-3 py-1 rounded-full bg-gradient-to-r from-accent/20 to-purple-500/20 border border-accent/30 text-xs text-accent inline-flex items-center gap-2">
+                    <Sparkles size={14} className="text-accent" />
+                    AI 增强内容
+                  </span>
+                )}
                 {data?.completeness?.content ? (
                   <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-white/80">
                     完整度：{Math.round((data.completeness.content.filled / data.completeness.content.total) * 100)}%
