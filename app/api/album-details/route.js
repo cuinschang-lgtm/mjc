@@ -489,7 +489,18 @@ async function generateAlbumDetailsAsync(albumId, albumRow) {
       releaseDate: albumRow.release_date,
     })
 
-    const supabase = createSupabaseServerClient()
+    // 使用服务端密钥创建 Supabase 客户端
+    const { createClient } = await import('@supabase/supabase-js')
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('Missing Supabase credentials for AI generation')
+      return
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
     await supabase
       .from('album_content_overrides')
       .upsert(
