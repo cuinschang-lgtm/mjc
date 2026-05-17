@@ -1,9 +1,53 @@
 import { NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 
 export const dynamic = 'force-dynamic'
 
 const NETEASE_API_BASE_URL = (process.env.NETEASE_API_BASE_URL || '').trim().replace(/\/+$/, '')
 const NETEASE_API_COOKIE = (process.env.NETEASE_API_COOKIE || '').trim()
+
+// Supabase 客户端用于缓存
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+const supabase = supabaseUrl && supabaseServiceKey ? createClient(supabaseUrl, supabaseServiceKey) : null
+
+// 生成缓存键
+function getCacheKey(term, type) {
+  return `${type}:${term}`.toLowerCase().trim()
+}
+
+// 从缓存获取结果
+async function getCachedResults(term, type) {
+  if (!supabase) return null
+  try {
+    const key = getCacheKey(term, type)
+    const { data, error } = await supabase
+      .from('search_cache')
+      .select('results')
+      .eq('search_key', key)
+      .eq('search_type', type)
+      .gte('updated_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // 24小时内有效
+      .maybeSingle()
+    if (error || !data) return null
+    return data.results
+  } catch (e) {
+    console.error('Cache get error:', e)
+    return null
+  }
+}
+
+// 保存结果到缓存
+async function setCachedResults(term, type, results) {
+  if (!supabase) return
+  try {
+    const key = getCacheKey(term, type)
+    await supabase
+      .from('search_cache')
+      .upsert({ search_key: key, search_type: type, results }, { onConflict: 'search_key' })
+  } catch (e) {
+    console.error('Cache set error:', e)
+  }
+}
 
 function normalizeText(s) {
   return String(s || '')
@@ -86,18 +130,45 @@ function scoreAlbum(term, album) {
   return score
 }
 
+function scoreArtist(term, artist) {
+  const q = normalizeText(term)
+  const name = normalizeText(artist?.artistName || artist?.name)
+  if (!q || !name) return 0
+  if (name === q) return 160
+  if (name.startsWith(`${q} `)) return 90
+  if (name.includes(q)) return 50
+  const qTokens = q.split(' ').filter(Boolean)
+  if (qTokens.length >= 2) {
+    const hits = qTokens.filter((t) => name.includes(t)).length
+    return Math.round(70 * (hits / qTokens.length))
+  }
+  return 10
+}
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url)
   const term = searchParams.get('term')
-  
+  const type = (searchParams.get('type') || 'album').toLowerCase()
+
   if (!term) {
     return NextResponse.json({ results: [] }, { status: 200, headers: { 'Cache-Control': 'no-store' } })
   }
 
   try {
-    // 1. Netease Cloud Music Search (Album)
-    // type=10 means Album
-    // This is a legacy public API endpoint often used for testing
+    const isArtist = type === 'artist'
+
+    // 1. 尝试从缓存获取
+    const cached = await getCachedResults(term, type)
+    if (cached && Array.isArray(cached)) {
+      return NextResponse.json(
+        { results: cached, cached: true },
+        { status: 200, headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' } }
+      )
+    }
+
+    // 2. 缓存未命中，执行搜索
+
+    // 1. Netease Cloud Music Search
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 5000) // 5s timeout
 
@@ -106,7 +177,7 @@ export async function GET(request) {
         if (NETEASE_API_BASE_URL) {
           const u = new URL(`${NETEASE_API_BASE_URL}/search`)
           u.searchParams.set('keywords', term)
-          u.searchParams.set('type', '10')
+          u.searchParams.set('type', isArtist ? '100' : '10')
           u.searchParams.set('limit', '50')
           const res = await fetch(u.toString(), {
             headers: NETEASE_API_COOKIE ? { Cookie: NETEASE_API_COOKIE } : {},
@@ -123,7 +194,7 @@ export async function GET(request) {
             Referer: 'https://music.163.com/',
             Cookie: 'os=pc',
           },
-          body: `s=${encodeURIComponent(term)}&type=10&offset=0&total=true&limit=50`,
+          body: `s=${encodeURIComponent(term)}&type=${isArtist ? '100' : '10'}&offset=0&total=true&limit=50`,
           signal: controller.signal,
         })
         if (!res.ok) return null
@@ -135,7 +206,8 @@ export async function GET(request) {
     })()
 
     // 2. iTunes Search (Server-side)
-    const itunesPromise = fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=album&limit=50&country=us`, {
+    const itunesEntity = isArtist ? 'musicArtist' : 'album'
+    const itunesPromise = fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=${encodeURIComponent(itunesEntity)}&limit=50&country=us`, {
       signal: controller.signal,
     })
       .then((res) => (res.ok ? res.json() : null))
@@ -150,9 +222,9 @@ export async function GET(request) {
     let results = []
 
     // Process Netease Data
-    if (neteaseData?.result?.albums) {
-       const neteaseAlbums = neteaseData.result.albums
-         .map((album) => ({
+    if (!isArtist && neteaseData?.result?.albums) {
+      const neteaseAlbums = neteaseData.result.albums
+        .map((album) => ({
           collectionId: `ne_${album.id}`,
           collectionName: album.name,
           artistName: album.artist.name,
@@ -160,38 +232,65 @@ export async function GET(request) {
           releaseDate: new Date(album.publishTime).toISOString(),
           trackCount: album.size,
           collectionViewUrl: `https://music.163.com/#/album?id=${album.id}`,
-          source: 'Netease'
-         }))
-         .filter((album) => {
-           const title = normalizeText(album.collectionName)
-           const artist = normalizeText(album.artistName)
-           if (hasForbidden(title, artist) && title !== normalizeText(term)) return false
-           if (Number(album.trackCount) > 0 && Number(album.trackCount) < 5) return false
-           return true
-         })
-       results = [...results, ...neteaseAlbums]
+          source: 'Netease',
+        }))
+        .filter((album) => {
+          const title = normalizeText(album.collectionName)
+          const artist = normalizeText(album.artistName)
+          if (hasForbidden(title, artist) && title !== normalizeText(term)) return false
+          if (Number(album.trackCount) > 0 && Number(album.trackCount) < 5) return false
+          return true
+        })
+      results = [...results, ...neteaseAlbums]
+    }
+
+    if (isArtist && neteaseData?.result?.artists) {
+      const neteaseArtists = neteaseData.result.artists.map((a) => ({
+        artistId: `ne_${a.id}`,
+        artistName: a.name,
+        artworkUrl100: a.picUrl || null,
+        artistViewUrl: `https://music.163.com/#/artist?id=${a.id}`,
+        source: 'Netease',
+      }))
+      results = [...results, ...neteaseArtists]
     }
 
     // Process iTunes Data
     if (itunesData?.results) {
-        const itunesAlbums = itunesData.results.filter(album => {
+      if (!isArtist) {
+        const itunesAlbums = itunesData.results
+          .filter((album) => {
             const title = album.collectionName?.toLowerCase() || ''
             const artist = album.artistName?.toLowerCase() || ''
-            
+
             if (hasForbidden(title, artist) && normalizeText(title) !== normalizeText(term)) return false
             if (album.trackCount && album.trackCount < 5) return false
             return true
-        }).map(album => ({
+          })
+          .map((album) => ({
             ...album,
-            source: 'iTunes'
-        }))
-        
+            source: 'iTunes',
+          }))
+
         results = [...results, ...itunesAlbums]
+      } else {
+        const itunesArtists = itunesData.results
+          .filter((a) => String(a?.artistName || '').trim())
+          .map((a) => ({
+            artistId: `it_${a.artistId}`,
+            artistName: a.artistName,
+            artworkUrl100: null,
+            artistViewUrl: a.artistLinkUrl || null,
+            source: 'iTunes',
+          }))
+
+        results = [...results, ...itunesArtists]
+      }
     }
 
     const scored = results
-      .map((x) => ({ x, s: scoreAlbum(term, x) }))
-      .filter(({ x, s }) => s > -80 || normalizeText(x?.collectionName) === normalizeText(term))
+      .map((x) => ({ x, s: isArtist ? scoreArtist(term, x) : scoreAlbum(term, x) }))
+      .filter(({ x, s }) => (isArtist ? s > 0 : s > -80 || normalizeText(x?.collectionName) === normalizeText(term)))
 
     scored.sort((a, b) => {
       if (b.s !== a.s) return b.s - a.s
@@ -206,15 +305,22 @@ export async function GET(request) {
     const seen = new Set()
     const deduped = []
     for (const r of scored) {
-      const k = `${normalizeText(r.x?.collectionName)}|${normalizeText(r.x?.artistName)}`
+      const k = isArtist
+        ? `${normalizeText(r.x?.artistName || r.x?.name)}`
+        : `${normalizeText(r.x?.collectionName)}|${normalizeText(r.x?.artistName)}`
       if (seen.has(k)) continue
       seen.add(k)
       deduped.push(r)
     }
 
+    const finalResults = deduped.map((r) => r.x).slice(0, 50)
+
+    // 3. 保存到缓存（异步，不阻塞响应）
+    setCachedResults(term, type, finalResults).catch(() => {})
+
     return NextResponse.json(
-      { results: deduped.map((r) => r.x).slice(0, 50) },
-      { status: 200, headers: { 'Cache-Control': 'no-store' } }
+      { results: finalResults, cached: false },
+      { status: 200, headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' } }
     )
     
   } catch (error) {

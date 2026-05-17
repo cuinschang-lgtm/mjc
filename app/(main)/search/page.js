@@ -1,13 +1,15 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { Search as SearchIcon, Plus, Check, Loader2, ExternalLink, Star } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import debounce from 'lodash/debounce'
+import { Search as SearchIcon, Plus, Check, Loader2, ExternalLink, Star, Users, Mic2 } from 'lucide-react'
 import { supabase } from '@/lib/supabaseBrowser'
 import { useRouter } from 'next/navigation'
 import { useLanguage } from '@/contexts/LanguageContext'
 
 export default function SearchPage() {
   const [query, setQuery] = useState('')
+  const [category, setCategory] = useState('album')
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
   const [addingId, setAddingId] = useState(null)
@@ -21,6 +23,7 @@ export default function SearchPage() {
       if (cached) {
         const s = JSON.parse(cached)
         if (s.query) setQuery(s.query)
+        if (s.category) setCategory(s.category)
         if (Array.isArray(s.results) && s.results.length) setResults(s.results)
       }
     } catch {}
@@ -33,22 +36,13 @@ export default function SearchPage() {
       const term = String(detail.term || '').trim()
       if (!term) return
       setQuery(term)
+      if (detail.category) setCategory(String(detail.category))
       try {
         inputRef.current?.focus()
       } catch {}
 
       try {
-        setLoading(true)
-        setResults([])
-        const res = await fetch(`/api/search?term=${encodeURIComponent(term)}`)
-        const data = await res.json()
-        const next = Array.isArray(data?.results)
-          ? data.results.map((album) => ({
-              ...album,
-              mockScore: album.mockScore || (Math.random() * (9.8 - 8.0) + 8.0).toFixed(1),
-            }))
-          : []
-        setResults(next)
+        const next = await doSearch({ term, nextCategory: detail.category || category, immediate: true })
         window.dispatchEvent(new CustomEvent('pickup:onboarding', { detail: { type: 'search:results_ready', count: next.length } }))
       } catch {
         window.dispatchEvent(new CustomEvent('pickup:onboarding', { detail: { type: 'search:results_ready', count: 0 } }))
@@ -61,43 +55,129 @@ export default function SearchPage() {
     return () => window.removeEventListener('pickup:onboarding', onEvt)
   }, [])
 
-  const searchAlbums = async (e) => {
-    e.preventDefault()
-    if (!query.trim() || loading) return
+  const doSearch = async ({ term, nextCategory, immediate }) => {
+    const q = String(term || '').trim()
+    const c = String(nextCategory || category)
+    if (!q) return []
+
+    // 客户端缓存检查
+    const cacheKey = `search:${c}:${q.toLowerCase()}`
+    try {
+      const cached = localStorage.getItem(cacheKey)
+      if (cached) {
+        const { data, timestamp } = JSON.parse(cached)
+        const age = Date.now() - timestamp
+        // 缓存10分钟有效
+        if (age < 10 * 60 * 1000) {
+          console.log('Using cached search results')
+          setResults(data)
+          return data
+        }
+      }
+    } catch (e) {
+      console.error('Cache read error:', e)
+    }
 
     setLoading(true)
-    setResults([]) 
-    
+    setResults([])
+
     try {
-      // Use our new internal API which aggregates Netease and iTunes
-      const res = await fetch(`/api/search?term=${encodeURIComponent(query)}`)
-      const data = await res.json()
-      
-      if (!data.results || data.results.length === 0) {
-        setResults([])
+      if (c === 'user') {
+        let token = null
         try {
-          window.dispatchEvent(new CustomEvent('pickup:onboarding', { detail: { type: 'search:results_ready', count: 0 } }))
+          const { data } = await supabase.auth.getSession()
+          token = data?.session?.access_token || null
         } catch {}
-        return
+        const controller = new AbortController()
+        const timer = setTimeout(() => controller.abort(), 8000)
+        const res = await fetch(`/api/search/users?q=${encodeURIComponent(q)}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          signal: controller.signal,
+        }).finally(() => clearTimeout(timer))
+        const data = await res.json().catch(() => null)
+        if (immediate && data?.error === 'email_search_requires_service_role') {
+          alert('邮箱搜索需要服务端能力：配置 SUPABASE_SERVICE_ROLE_KEY，或执行 Supabase 数据库迁移以启用邮箱搜索函数。')
+        } else if (immediate && data?.error === 'email_search_requires_login') {
+          alert('请先登录后再使用邮箱搜索。')
+        }
+        const next = Array.isArray(data?.users) ? data.users : []
+        setResults(next)
+
+        // 保存到客户端缓存
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify({ data: next, timestamp: Date.now() }))
+        } catch {}
+
+        return next
       }
 
-      // Add mock scores to results (if source is Netease, maybe we don't need mock score? 
-      // but to keep UI consistent, let's add it if missing)
-      const resultsWithScores = data.results.map(album => ({
-        ...album,
-        mockScore: album.mockScore || (Math.random() * (9.8 - 8.0) + 8.0).toFixed(1)
-      }))
-      
-      setResults(resultsWithScores)
+      if (c === 'artist') {
+        const res = await fetch(`/api/search?term=${encodeURIComponent(q)}&type=artist`)
+        const data = await res.json().catch(() => null)
+        const next = Array.isArray(data?.results) ? data.results : []
+        setResults(next)
+
+        // 保存到客户端缓存
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify({ data: next, timestamp: Date.now() }))
+        } catch {}
+
+        return next
+      }
+
+      const res = await fetch(`/api/search?term=${encodeURIComponent(q)}`)
+      const data = await res.json().catch(() => null)
+      const next = Array.isArray(data?.results)
+        ? data.results.map((album) => ({
+            ...album,
+            mockScore: album.mockScore || (Math.random() * (9.8 - 8.0) + 8.0).toFixed(1),
+          }))
+        : []
+      setResults(next)
+
+      // 保存到客户端缓存
       try {
-        window.dispatchEvent(new CustomEvent('pickup:onboarding', { detail: { type: 'search:results_ready', count: resultsWithScores.length } }))
+        localStorage.setItem(cacheKey, JSON.stringify({ data: next, timestamp: Date.now() }))
       } catch {}
+
+      return next
     } catch (error) {
-      console.error('Search failed:', error)
+      if (immediate) console.error('Search failed:', error)
+      return []
     } finally {
       setLoading(false)
     }
   }
+
+  const searchAlbums = async (e) => {
+    e.preventDefault()
+    if (!query.trim() || loading) return
+
+    try {
+      const next = await doSearch({ term: query, nextCategory: category, immediate: true })
+      try {
+        window.dispatchEvent(new CustomEvent('pickup:onboarding', { detail: { type: 'search:results_ready', count: next.length } }))
+      } catch {}
+    } catch (error) {
+      console.error('Search failed:', error)
+    }
+  }
+
+  const debouncedSearch = useMemo(
+    () =>
+      debounce((term, c) => {
+        doSearch({ term, nextCategory: c, immediate: false })
+      }, 350),
+    [category]
+  )
+
+  useEffect(() => {
+    const q = String(query || '').trim()
+    if (!q) return
+    if (q.length < 2) return
+    debouncedSearch(q, category)
+    return () => debouncedSearch.cancel()
+  }, [query, category, debouncedSearch])
 
   const addToLibrary = async (album, status = 'want_to_listen') => {
     setAddingId(album.collectionId)
@@ -348,7 +428,10 @@ export default function SearchPage() {
   const openAlbumDetail = async (album) => {
     try {
       // Save current search context for going back
-      try { sessionStorage.setItem('nav:from', 'search'); sessionStorage.setItem('search:last', JSON.stringify({ query, results })) } catch {}
+      try {
+        sessionStorage.setItem('nav:from', 'search')
+        sessionStorage.setItem('search:last', JSON.stringify({ query, category, results }))
+      } catch {}
       const albumId = await ensureAlbumId(album)
       router.push(`/album/${albumId}`)
     } catch (e) {
@@ -356,6 +439,13 @@ export default function SearchPage() {
       alert('打开专辑详情失败，请稍后重试')
     }
   }
+
+  const placeholder =
+    category === 'user'
+      ? '输入 UID 或邮箱进行精确搜索'
+      : category === 'artist'
+        ? '搜索艺人'
+        : t('search.placeholder')
 
   return (
     <div className="max-w-7xl mx-auto relative animate-fade-in-up">
@@ -369,99 +459,182 @@ export default function SearchPage() {
         <form onSubmit={searchAlbums} className="relative group">
           <div className="absolute inset-0 bg-gradient-to-r from-accent to-orange-500 rounded-full blur-xl opacity-20 group-hover:opacity-30 transition-opacity duration-500" />
           <div className="relative flex items-center">
-             <SearchIcon className="absolute left-6 text-secondary group-focus-within:text-accent transition-colors" size={24} />
-            <input
-              ref={inputRef}
-              data-tour="search-input"
-               type="text"
-               value={query}
-               onChange={(e) => setQuery(e.target.value)}
-               placeholder={t('search.placeholder')}
-               className="w-full bg-black/40 backdrop-blur-xl border border-white/10 rounded-full py-5 pl-16 pr-32 text-white placeholder-secondary/50 focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/50 transition-all text-lg shadow-glass"
-             />
-             <button 
-               type="submit"
-               disabled={loading}
-               className="absolute right-2 top-2 bottom-2 btn-primary px-8 rounded-full font-bold text-sm shadow-lg hover:scale-105 transition-transform"
-             >
-               {loading ? <Loader2 className="animate-spin" size={20} /> : t('common.search')}
-             </button>
+            <div className="relative flex w-full items-center gap-2 bg-black/40 backdrop-blur-xl border border-white/10 rounded-full pl-3 pr-2 py-2 shadow-glass focus-within:border-accent/50 focus-within:ring-1 focus-within:ring-accent/50 transition-all">
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-secondary">
+                  {category === 'user' ? <Users size={18} /> : category === 'artist' ? <Mic2 size={18} /> : <SearchIcon size={18} />}
+                </div>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="h-10 max-w-[96px] sm:max-w-none bg-black/30 backdrop-blur-xl border border-white/10 rounded-full px-3 text-xs font-bold text-white focus:outline-none focus:border-accent/50"
+                  aria-label="搜索分类"
+                >
+                  <option value="album">专辑</option>
+                  <option value="artist">艺术家</option>
+                  <option value="user">用户</option>
+                </select>
+              </div>
+
+              <input
+                ref={inputRef}
+                data-tour="search-input"
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={placeholder}
+                className="flex-1 bg-transparent py-3 px-3 pr-28 text-white placeholder-secondary/50 focus:outline-none text-lg min-w-0"
+              />
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="absolute right-2 top-2 bottom-2 btn-primary px-8 rounded-full font-bold text-sm shadow-lg hover:scale-105 transition-transform"
+              >
+                {loading ? <Loader2 className="animate-spin" size={20} /> : t('common.search')}
+              </button>
+            </div>
           </div>
         </form>
       </div>
 
-      {/* Results Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8">
-        {results.map((album, index) => (
-          <div 
-            key={album.collectionId} 
-            className="group relative flex flex-col"
-            style={{ animationDelay: `${index * 50}ms` }}
-          >
+      {category === 'album' ? (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8">
+          {results.map((album, index) => (
             <div
-              className="aspect-square rounded-2xl overflow-hidden mb-4 relative bg-card shadow-lg border border-white/5 group-hover:border-accent/30 group-hover:shadow-card-hover transition-all duration-500 group-hover:-translate-y-2 cursor-pointer"
-              role="button"
-              tabIndex={0}
-              onClick={() => openAlbumDetail(album)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') openAlbumDetail(album)
-              }}
+              key={album.collectionId}
+              className="group relative flex flex-col"
+              style={{ animationDelay: `${index * 50}ms` }}
             >
-              <img 
-                src={album.artworkUrl100.replace('100x100', '400x400')} 
-                alt={album.collectionName}
-                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                loading="lazy"
-              />
-              
-              {/* Score Badge (Mock) */}
-              <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg px-2 py-1 flex items-center gap-1 z-10 shadow-lg">
-                <Star size={12} className="text-yellow-400 fill-yellow-400" />
-                <span className="text-xs font-bold text-white">{album.mockScore}</span>
+              <div
+                className="aspect-square rounded-2xl overflow-hidden mb-4 relative bg-card shadow-lg border border-white/5 group-hover:border-accent/30 group-hover:shadow-card-hover transition-all duration-500 group-hover:-translate-y-2 cursor-pointer"
+                role="button"
+                tabIndex={0}
+                onClick={() => openAlbumDetail(album)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') openAlbumDetail(album)
+                }}
+              >
+                <img
+                  src={String(album.artworkUrl100 || '').replace('100x100', '400x400')}
+                  alt={album.collectionName}
+                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                  loading="lazy"
+                />
+
+                <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg px-2 py-1 flex items-center gap-1 z-10 shadow-lg">
+                  <Star size={12} className="text-yellow-400 fill-yellow-400" />
+                  <span className="text-xs font-bold text-white">{album.mockScore}</span>
+                </div>
+
+                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-center gap-3 backdrop-blur-[4px] p-6">
+                  <button
+                    data-tour={index === 0 ? 'search-want' : undefined}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      addToLibrary(album, 'want_to_listen')
+                    }}
+                    disabled={addingId === album.collectionId}
+                    className="w-full py-3 btn-primary rounded-xl font-bold text-sm shadow-lg hover:scale-105 transition-transform flex items-center justify-center gap-2"
+                  >
+                    {addingId === album.collectionId ? <Loader2 className="animate-spin" size={18} /> : <Plus size={18} />}
+                    {t('search.wantToListen')}
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      addToLibrary(album, 'listened')
+                    }}
+                    disabled={addingId === album.collectionId}
+                    className="w-full py-3 bg-white/10 backdrop-blur-md border border-white/20 text-white rounded-xl font-bold text-sm hover:bg-white/20 transition-all flex items-center justify-center gap-2"
+                  >
+                    {addingId === album.collectionId ? <Loader2 className="animate-spin" size={18} /> : <Check size={18} />}
+                    {t('search.listened')}
+                  </button>
+                </div>
               </div>
 
-              {/* Action Overlay */}
-              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-center gap-3 backdrop-blur-[4px] p-6">
-                 <button 
-                   data-tour={index === 0 ? 'search-want' : undefined}
-                   onClick={(e) => {
-                     e.stopPropagation()
-                     addToLibrary(album, 'want_to_listen')
-                   }}
-                   disabled={addingId === album.collectionId}
-                   className="w-full py-3 btn-primary rounded-xl font-bold text-sm shadow-lg hover:scale-105 transition-transform flex items-center justify-center gap-2"
-                 >
-                   {addingId === album.collectionId ? <Loader2 className="animate-spin" size={18} /> : <Plus size={18} />}
-                   {t('search.wantToListen')}
-                 </button>
-                 <button 
-                   onClick={(e) => {
-                     e.stopPropagation()
-                     addToLibrary(album, 'listened')
-                   }}
-                   disabled={addingId === album.collectionId}
-                   className="w-full py-3 bg-white/10 backdrop-blur-md border border-white/20 text-white rounded-xl font-bold text-sm hover:bg-white/20 transition-all flex items-center justify-center gap-2"
-                 >
-                   {addingId === album.collectionId ? <Loader2 className="animate-spin" size={18} /> : <Check size={18} />}
-                   {t('search.listened')}
-                 </button>
+              <div className="px-1">
+                <h3
+                  className="text-white font-bold truncate mb-1 text-base group-hover:text-accent transition-colors"
+                  title={album.collectionName}
+                >
+                  {album.collectionName}
+                </h3>
+                <p className="text-secondary text-sm truncate mb-2 font-medium">{album.artistName}</p>
+
+                <div className="flex items-center justify-between text-xs text-secondary/60 font-medium uppercase tracking-wide">
+                  <span>{album.releaseDate ? new Date(album.releaseDate).getFullYear() : ''}</span>
+                  {album.collectionViewUrl ? (
+                    <a
+                      href={album.collectionViewUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-accent flex items-center gap-1 transition-colors"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Link <ExternalLink size={10} />
+                    </a>
+                  ) : null}
+                </div>
               </div>
             </div>
-            
-            <div className="px-1">
-              <h3 className="text-white font-bold truncate mb-1 text-base group-hover:text-accent transition-colors" title={album.collectionName}>{album.collectionName}</h3>
-              <p className="text-secondary text-sm truncate mb-2 font-medium">{album.artistName}</p>
-              
-              <div className="flex items-center justify-between text-xs text-secondary/60 font-medium uppercase tracking-wide">
-                 <span>{new Date(album.releaseDate).getFullYear()}</span>
-                 <a href={album.collectionViewUrl} target="_blank" rel="noopener noreferrer" className="hover:text-accent flex items-center gap-1 transition-colors">
-                   iTunes <ExternalLink size={10} />
-                 </a>
+          ))}
+        </div>
+      ) : null}
+
+      {category === 'artist' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {results.map((a) => (
+            <a
+              key={a.artistId}
+              href={a.artistViewUrl || '#'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="glass-panel p-6 rounded-3xl border border-white/10 hover:border-accent/30 transition-colors flex items-center gap-4"
+            >
+              <div className="w-14 h-14 rounded-2xl overflow-hidden bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0">
+                {a?.artworkUrl100 ? (
+                  <img src={a.artworkUrl100} alt={a.artistName} className="w-full h-full object-cover" loading="lazy" />
+                ) : (
+                  <Mic2 size={22} className="text-secondary" />
+                )}
               </div>
-            </div>
-          </div>
-        ))}
-      </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-white font-bold truncate">{a.artistName}</div>
+                <div className="text-xs text-secondary mt-1">{a.source || ''}</div>
+              </div>
+              <ExternalLink size={16} className="text-secondary" />
+            </a>
+          ))}
+        </div>
+      ) : null}
+
+      {category === 'user' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {results.map((u) => (
+            <button
+              key={u.userId}
+              type="button"
+              onClick={() => router.push(`/user/${u.userId}`)}
+              className="glass-panel p-6 rounded-3xl border border-white/10 hover:border-accent/30 transition-colors flex items-center gap-4 text-left"
+            >
+              <div className="w-14 h-14 rounded-2xl overflow-hidden bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0">
+                {u?.avatarUrl ? (
+                  <img src={u.avatarUrl} alt={u.nickname || 'user'} className="w-full h-full object-cover" loading="lazy" />
+                ) : (
+                  <Users size={22} className="text-secondary" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-white font-bold truncate">{u.nickname || '未设置昵称'}</div>
+                <div className="text-xs text-secondary break-all mt-1">UID: {u.userId}</div>
+              </div>
+              <ExternalLink size={16} className="text-secondary" />
+            </button>
+          ))}
+        </div>
+      ) : null}
       
       {results.length === 0 && !loading && query && (
          <div className="text-center py-32">
