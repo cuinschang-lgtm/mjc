@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Clock, ExternalLink, ImageOff, ListMusic, RefreshCw, Share2, Sparkles, Star, X } from 'lucide-react'
+import { ArrowLeft, Clock, ExternalLink, ImageOff, ListMusic, RefreshCw, Share2, Sparkles, Star, X, Loader2 } from 'lucide-react'
 import { cn } from '../../../../lib/utils'
 import { supabase } from '@/lib/supabase'
 import QRCode from 'qrcode'
@@ -40,6 +40,7 @@ export default function AlbumDetailPage() {
   const [coverError, setCoverError] = useState(false)
   const [showAllTracks, setShowAllTracks] = useState(false)
   const [generatingPoster, setGeneratingPoster] = useState(false)
+  const [aiGenerating, setAiGenerating] = useState(false)
   const [posterVariant, setPosterVariant] = useState('glass')
   const [posterMounted, setPosterMounted] = useState(false)
   const [myTags, setMyTags] = useState([])
@@ -107,6 +108,21 @@ export default function AlbumDetailPage() {
     }
 
     setError('抓取仍未成功。建议配置 `NETEASE_API_BASE_URL`（见 docs/NETEASE_API_SETUP.md），或稍后重试。')
+  }
+
+  const handleAiGenerate = async () => {
+    if (aiGenerating || !albumId) return
+    setAiGenerating(true)
+    try {
+      const res = await fetch(`/api/album-details?albumId=${encodeURIComponent(albumId)}&ai=1`)
+      const json = await res.json()
+      if (!res.ok) throw new Error(json?.error || 'AI 生成失败')
+      await fetchDetail(true)
+    } catch (e) {
+      alert(e?.message || 'AI 生成失败，请稍后重试')
+    } finally {
+      setAiGenerating(false)
+    }
   }
 
   useEffect(() => {
@@ -365,6 +381,16 @@ export default function AlbumDetailPage() {
             <RefreshCw size={16} />
             重新抓取
           </button>
+
+          <button
+            type="button"
+            onClick={handleAiGenerate}
+            disabled={loading || aiGenerating}
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-500/20 to-blue-500/20 border border-purple-500/30 text-purple-300 hover:text-white hover:from-purple-500/30 hover:to-blue-500/30 transition-all flex items-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
+          >
+            {aiGenerating ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+            {aiGenerating ? 'AI 生成中…' : 'AI 抓取'}
+          </button>
         </div>
       </div>
 
@@ -372,6 +398,16 @@ export default function AlbumDetailPage() {
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center">
           <div className="glass-panel px-6 py-4 rounded-2xl border border-white/10 text-white font-bold">
             正在生成海报…
+          </div>
+        </div>
+      )}
+
+      {aiGenerating && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center">
+          <div className="glass-panel px-8 py-6 rounded-2xl border border-purple-500/20 text-white text-center">
+            <Loader2 size={32} className="animate-spin mx-auto mb-3 text-purple-400" />
+            <div className="font-bold mb-1">AI 正在生成专辑信息</div>
+            <div className="text-sm text-secondary">通常需要 10-30 秒，请稍候…</div>
           </div>
         </div>
       )}
