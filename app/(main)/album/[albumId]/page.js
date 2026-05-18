@@ -74,6 +74,8 @@ export default function AlbumDetailPage() {
     ]
   }, [data])
 
+  const [loadingRefetch, setLoadingRefetch] = useState(false)
+
   const fetchDetail = async (refresh = false) => {
     if (!albumId) return
     setError('')
@@ -107,22 +109,27 @@ export default function AlbumDetailPage() {
   }
 
   const refetchUntilReady = async () => {
-    const first = await fetchDetail(true)
-    const hasTracks = Array.isArray(first?.basic?.tracks) && first.basic.tracks.length > 0
-    const hasContent =
-      !!first?.content?.artistBio || !!first?.content?.creationBackground || !!first?.content?.mediaReviews || !!first?.content?.awards
-    if (hasTracks || hasContent) return
+    setLoadingRefetch(true)
+    try {
+      const first = await fetchDetail(true)
+      const hasTracks = Array.isArray(first?.basic?.tracks) && first.basic.tracks.length > 0
+      const hasContent =
+        !!first?.content?.artistBio || !!first?.content?.creationBackground || !!first?.content?.mediaReviews || !!first?.content?.awards
+      if (hasTracks || hasContent) return
 
-    for (let i = 0; i < 2; i += 1) {
-      await new Promise((r) => setTimeout(r, 1200 * (i + 1)))
-      const next = await fetchDetail(true)
-      const okTracks = Array.isArray(next?.basic?.tracks) && next.basic.tracks.length > 0
-      const okContent =
-        !!next?.content?.artistBio || !!next?.content?.creationBackground || !!next?.content?.mediaReviews || !!next?.content?.awards
-      if (okTracks || okContent) return
+      for (let i = 0; i < 2; i += 1) {
+        await new Promise((r) => setTimeout(r, 1200 * (i + 1)))
+        const next = await fetchDetail(true)
+        const okTracks = Array.isArray(next?.basic?.tracks) && next.basic.tracks.length > 0
+        const okContent =
+          !!next?.content?.artistBio || !!next?.content?.creationBackground || !!next?.content?.mediaReviews || !!next?.content?.awards
+        if (okTracks || okContent) return
+      }
+
+      setError('抓取仍未成功。建议配置 `NETEASE_API_BASE_URL`（见 docs/NETEASE_API_SETUP.md），或稍后重试。')
+    } finally {
+      setLoadingRefetch(false)
     }
-
-    setError('抓取仍未成功。建议配置 `NETEASE_API_BASE_URL`（见 docs/NETEASE_API_SETUP.md），或稍后重试。')
   }
 
   const handleAiGenerate = async () => {
@@ -373,11 +380,11 @@ export default function AlbumDetailPage() {
             data-tour="album-refetch"
             type="button"
             onClick={refetchUntilReady}
-            disabled={loading}
+            disabled={loadingRefetch}
             className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white/80 hover:text-white hover:bg-white/10 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
           >
-            <RefreshCw size={16} />
-            重新抓取
+            <RefreshCw size={16} className={loadingRefetch ? 'animate-spin' : ''} />
+            {loadingRefetch ? '抓取中…' : '重新抓取'}
           </button>
 
           <button
