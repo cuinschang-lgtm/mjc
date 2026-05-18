@@ -317,7 +317,7 @@ export default function AlbumDetailPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 md:px-6 py-10 animate-fade-in-up">
+    <div className="max-w-full mx-auto px-4 md:px-6 py-10 animate-fade-in-up">
       {zoomOpen && coverUrl && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setZoomOpen(false)}>
           <div className="relative max-w-4xl w-full" onClick={(e) => e.stopPropagation()}>

@@ -76,8 +76,7 @@ const Sidebar = () => {
   }
 
   const navItems = [
-    { name: '首页', href: '/', icon: Home, tour: 'nav-library' },
-    { name: t('sidebar.myLibrary'), href: '/', icon: Library },
+    { name: t('sidebar.myLibrary'), href: '/', icon: Library, tour: 'nav-library' },
     { name: t('sidebar.search'), href: '/search', icon: Search, tour: 'nav-search' },
     { name: t('sidebar.charts'), href: '/charts', icon: BarChart3 },
     ...(isAdmin ? [{ name: t('sidebar.adminAlbums'), href: '/albums', icon: Shield }] : []),
