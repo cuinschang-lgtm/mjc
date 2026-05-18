@@ -34,7 +34,8 @@ export default function AlbumDetailPage() {
   const albumId = params?.albumId
 
   const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const [loadingFull, setLoadingFull] = useState(true)
   const [error, setError] = useState('')
   const [zoomOpen, setZoomOpen] = useState(false)
   const [coverError, setCoverError] = useState(false)
@@ -47,6 +48,7 @@ export default function AlbumDetailPage() {
   const [myRating, setMyRating] = useState(null)
   const [qrDataURL, setQrDataURL] = useState('')
   const [accentColor, setAccentColor] = useState('')
+  const [posterText, setPosterText] = useState('')
 
   const posterRef = useRef(null)
 
@@ -74,30 +76,33 @@ export default function AlbumDetailPage() {
 
   const fetchDetail = async (refresh = false) => {
     if (!albumId) return
-    setLoading(true)
     setError('')
     try {
-      // 先快速加载基本信息
-      const url = `/api/album-details?albumId=${encodeURIComponent(albumId)}${refresh ? '&refresh=1' : ''}${!refresh ? '&fast=1' : ''}`
+      // 快速模式：先从数据库获取基本信息
+      if (!refresh && !data) {
+        const fastUrl = `/api/album-details?albumId=${encodeURIComponent(albumId)}&fast=1`
+        const fastRes = await fetch(fastUrl)
+        const fastJson = await fastRes.json()
+        if (fastRes.ok && fastJson) {
+          setData(fastJson)
+          setLoading(false)
+        }
+      }
+
+      // 完整加载
+      setLoadingFull(true)
+      const url = `/api/album-details?albumId=${encodeURIComponent(albumId)}${refresh ? '&refresh=1' : ''}`
       const res = await fetch(url)
       const json = await res.json()
       if (!res.ok) throw new Error(json?.error || 'failed')
       setData(json)
-      setLoading(false)
-
-      // 如果是快速模式且内容不完整，后台加载完整数据
-      if (!refresh && json?.partial) {
-        const fullRes = await fetch(`/api/album-details?albumId=${encodeURIComponent(albumId)}`)
-        const fullJson = await fullRes.json()
-        if (fullRes.ok) setData(fullJson)
-      }
-
       return json
     } catch (e) {
-      setError(e?.message || '加载失败')
+      if (!data) setError(e?.message || '加载失败')
       return null
     } finally {
       setLoading(false)
+      setLoadingFull(false)
     }
   }
 
@@ -252,9 +257,7 @@ export default function AlbumDetailPage() {
   }, [posterCoverUrl])
 
   const generatePoster = async () => {
-    if (generatingPoster) return
     try {
-      setGeneratingPoster(true)
       setPosterMounted(true)
       if (posterCoverUrl) await preloadImage(posterCoverUrl)
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
@@ -262,7 +265,7 @@ export default function AlbumDetailPage() {
       let blob = await renderPosterToBlob(node, {
         width: 1080,
         pixelRatio: 2,
-        backgroundColor: posterVariant === 'vinyl' ? '#0b0b0d' : '#0b0b0d',
+        backgroundColor: '#2c2c2e',
       })
 
       const blank1 = await isBlankImage(blob).catch(() => false)
@@ -270,7 +273,7 @@ export default function AlbumDetailPage() {
         blob = await renderPosterToBlob(node, {
           width: 1080,
           pixelRatio: 1,
-          backgroundColor: posterVariant === 'vinyl' ? '#0b0b0d' : '#0b0b0d',
+          backgroundColor: '#2c2c2e',
         })
       }
 
@@ -292,6 +295,7 @@ export default function AlbumDetailPage() {
 
       const filename = buildPosterFilename({ album: title, artist: artistName })
       downloadBlob(blob, filename)
+      setGeneratingPoster(false)
     } catch (e) {
       console.error('poster generate failed', e)
       const msg = String(e?.message || '')
@@ -301,7 +305,6 @@ export default function AlbumDetailPage() {
         alert('海报生成失败，请重试')
       }
     } finally {
-      setGeneratingPoster(false)
       setPosterMounted(false)
     }
   }
@@ -356,37 +359,14 @@ export default function AlbumDetailPage() {
           返回
         </button>
         <div className="flex items-center gap-2">
-          <div className="flex bg-black/20 rounded-xl p-1 border border-white/10">
-            <button
-              type="button"
-              onClick={() => setPosterVariant('glass')}
-              className={cn(
-                'px-3 py-2 rounded-lg text-xs font-bold transition-all',
-                posterVariant === 'glass' ? 'bg-white text-black' : 'text-secondary hover:text-white hover:bg-white/5'
-              )}
-            >
-              玻璃
-            </button>
-            <button
-              type="button"
-              onClick={() => setPosterVariant('vinyl')}
-              className={cn(
-                'px-3 py-2 rounded-lg text-xs font-bold transition-all',
-                posterVariant === 'vinyl' ? 'bg-white text-black' : 'text-secondary hover:text-white hover:bg-white/5'
-              )}
-            >
-              黑胶
-            </button>
-          </div>
-
           <button
             type="button"
-            onClick={generatePoster}
+            onClick={() => setGeneratingPoster(true)}
             disabled={loading || generatingPoster}
             className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white/80 hover:text-white hover:bg-white/10 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
           >
             <Share2 size={16} />
-            {generatingPoster ? '生成中' : '分享'}
+            分享
           </button>
 
           <button
@@ -412,10 +392,41 @@ export default function AlbumDetailPage() {
         </div>
       </div>
 
+      {/* 分享海报弹窗 */}
       {generatingPoster && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center">
-          <div className="glass-panel px-6 py-4 rounded-2xl border border-white/10 text-white font-bold">
-            正在生成海报…
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setGeneratingPoster(false)}>
+          <div className="relative max-w-lg w-full max-h-[90vh] overflow-y-auto rounded-2xl" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setGeneratingPoster(false)}
+              className="absolute top-4 right-4 z-10 text-white/70 hover:text-white bg-black/40 rounded-full p-2"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="glass-panel p-6 rounded-2xl border border-white/10 space-y-4">
+              <h3 className="text-lg font-bold text-white">生成分享海报</h3>
+
+              <div className="space-y-2">
+                <label className="text-sm text-secondary">写下你的感想（将显示在海报中）</label>
+                <textarea
+                  value={posterText}
+                  onChange={(e) => setPosterText(e.target.value)}
+                  placeholder="这张专辑值得被更多人听到..."
+                  className="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-white placeholder-white/30 focus:outline-none focus:border-accent/50 resize-none h-28"
+                  maxLength={200}
+                />
+                <div className="text-xs text-secondary text-right">{posterText.length}/200</div>
+              </div>
+
+              <button
+                type="button"
+                onClick={generatePoster}
+                className="w-full btn-primary py-3 rounded-xl font-bold"
+              >
+                生成并下载海报
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -444,8 +455,8 @@ export default function AlbumDetailPage() {
             rating={typeof myRating === 'number' ? myRating : null}
             coverImage={posterCoverUrl}
             qrDataURL={qrDataURL}
-            variant={posterVariant}
             accentColor={accentColor}
+            posterText={posterText}
           />
         </div>
       )}

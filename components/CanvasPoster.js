@@ -3,13 +3,9 @@
 import { useMemo } from 'react'
 import tinycolor from 'tinycolor2'
 
-function clamp(n, min, max) {
-  return Math.max(min, Math.min(max, n))
-}
-
-function StarIcon({ fill = 0, size = 32, color = '#FFD700', emptyColor = 'rgba(255,255,255,0.25)' }) {
+function StarIcon({ fill = 0, size = 20, color = '#FFD700', emptyColor = 'rgba(255,255,255,0.25)' }) {
   const id = useMemo(() => `grad_${Math.random().toString(16).slice(2)}`, [])
-  const pct = clamp(fill, 0, 1) * 100
+  const pct = Math.max(0, Math.min(1, fill)) * 100
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
       <defs>
@@ -26,29 +22,7 @@ function StarIcon({ fill = 0, size = 32, color = '#FFD700', emptyColor = 'rgba(2
   )
 }
 
-function Stars({ rating10 }) {
-  const r5 = typeof rating10 === 'number' ? rating10 / 2 : null
-  const stars = Array.from({ length: 5 }).map((_, i) => {
-    if (r5 === null) return 0
-    const v = r5 - i
-    if (v >= 1) return 1
-    if (v >= 0.5) return 0.5
-    return 0
-  })
-
-  return (
-    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-      {stars.map((f, idx) => (
-        <StarIcon key={idx} fill={f} />
-      ))}
-      {typeof rating10 === 'number' ? (
-        <div style={{ marginLeft: 8, fontSize: 24, color: 'rgba(255,255,255,0.85)', fontVariantNumeric: 'tabular-nums' }}>
-          {rating10.toFixed(1)} / 10
-        </div>
-      ) : null}
-    </div>
-  )
-}
+// PLACEHOLDER_CONTINUE
 
 export default function CanvasPoster({
   album,
@@ -60,284 +34,185 @@ export default function CanvasPoster({
   qrDataURL,
   variant = 'glass',
   accentColor,
-  brandName = '拾音Pickup',
-  myReview,
+  brandName = '拾音 Pickup',
+  posterText = '',
+  userName = '',
 }) {
-  const safeTags = Array.isArray(tags) ? tags.filter(Boolean).slice(0, 5) : []
-  const moreCount = Array.isArray(tags) && tags.length > 5 ? tags.length - 5 : 0
   const baseAccent = tinycolor(accentColor || '#ff4d4d')
   const accent = baseAccent.isValid() ? baseAccent.toHexString() : '#ff4d4d'
-  const bgMask =
-    variant === 'vinyl'
-      ? 'radial-gradient(circle at 30% 20%, rgba(255,255,255,0.06), rgba(0,0,0,0) 50%), rgba(0,0,0,0.68)'
-      : 'radial-gradient(circle at 20% 15%, rgba(255,255,255,0.10), rgba(0,0,0,0) 55%), rgba(0,0,0,0.42)'
-  const panelBg =
-    variant === 'vinyl'
-      ? 'linear-gradient(180deg, rgba(10,10,12,0.94), rgba(10,10,12,0.82))'
-      : 'linear-gradient(135deg, rgba(255,255,255,0.14), rgba(255,255,255,0.06))'
-  const panelBorder = variant === 'vinyl' ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.22)'
-  const textPrimary = variant === 'vinyl' ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.92)'
-  const textSecondary = variant === 'vinyl' ? 'rgba(255,255,255,0.72)' : 'rgba(255,255,255,0.74)'
 
   const containerStyle = {
     width: 1080,
-    padding: 80,
-    borderRadius: 32,
+    minHeight: 1400,
     position: 'relative',
     overflow: 'hidden',
-    fontFamily: '"Noto Serif SC", "Source Han Serif SC", var(--font-serif), Georgia, serif',
-    color: textPrimary,
+    fontFamily: '"Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif',
+    color: '#fff',
+    background: '#2c2c2e',
   }
 
-  const bgStyle = {
+  const bgBlurStyle = {
     position: 'absolute',
     inset: 0,
-    transform: 'scale(1.2)',
-    filter: 'blur(40px)',
-    opacity: variant === 'vinyl' ? 0.7 : 0.6,
+    transform: 'scale(1.3)',
+    filter: 'blur(60px) brightness(0.5)',
+    opacity: 0.8,
     objectFit: 'cover',
     width: '100%',
     height: '100%',
   }
 
-  const maskStyle = {
-    position: 'absolute',
-    inset: 0,
-    background: bgMask,
+  const headerStyle = {
+    position: 'relative',
+    padding: '48px 60px 40px',
+    textAlign: 'center',
+    fontSize: 28,
+    fontWeight: 700,
+    color: 'rgba(255,255,255,0.9)',
+    letterSpacing: '0.05em',
   }
 
-  const panelStyle = {
+  const cardStyle = {
     position: 'relative',
-    borderRadius: 32,
-    padding: 64,
-    background: panelBg,
-    border: `1px solid ${panelBorder}`,
-    boxShadow:
-      variant === 'vinyl'
-        ? '0 24px 60px rgba(0,0,0,0.55)'
-        : '0 24px 60px rgba(0,0,0,0.35)',
-    backdropFilter: variant === 'glass' ? 'blur(22px) saturate(1.25)' : undefined,
+    margin: '0 48px',
+    borderRadius: 24,
+    overflow: 'hidden',
+    background: 'rgba(60,60,65,0.85)',
+    backdropFilter: 'blur(20px)',
+    border: '1px solid rgba(255,255,255,0.08)',
   }
 
   const coverWrapStyle = {
-    width: 740,
-    margin: '0 auto',
-    borderRadius: 8,
-    overflow: 'hidden',
-    border: `1px solid rgba(255,255,255,0.14)`,
-    boxShadow: '0 18px 40px rgba(0,0,0,0.35)',
-  }
-
-  const titleStyle = {
-    marginTop: 40,
-    fontSize: 48,
-    fontWeight: 600,
-    lineHeight: 1.2,
-    letterSpacing: '-0.02em',
-  }
-
-  const artistRowStyle = {
-    marginTop: 16,
     display: 'flex',
-    gap: 16,
-    alignItems: 'baseline',
-    flexWrap: 'wrap',
+    justifyContent: 'center',
+    padding: '48px 48px 0',
   }
 
-  const artistStyle = {
-    fontSize: 36,
-    fontWeight: 400,
-    color: textSecondary,
-    lineHeight: 1.2,
+  const coverStyle = {
+    width: 480,
+    height: 480,
+    borderRadius: 12,
+    objectFit: 'cover',
+    boxShadow: '0 20px 50px rgba(0,0,0,0.4)',
   }
 
-  const yearStyle = {
-    fontSize: 24,
-    fontWeight: 400,
-    color: 'rgba(255,255,255,0.58)',
-    lineHeight: 1.2,
-  }
-
-  const tagRowStyle = {
-    marginTop: 32,
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: 12,
-  }
-
-  const tagStyle = {
-    padding: '10px 16px',
-    borderRadius: 999,
-    fontSize: 20,
-    fontWeight: 600,
-    background: tinycolor(accent).setAlpha(0.18).toRgbString(),
-    border: `1px solid ${tinycolor(accent).setAlpha(0.28).toRgbString()}`,
-    color: 'rgba(255,255,255,0.9)',
-  }
-
-  const footerStyle = {
-    marginTop: 48,
+  const infoStyle = {
+    padding: '32px 48px 40px',
     display: 'flex',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
     gap: 24,
   }
 
-  const reviewWrapStyle = {
-    marginTop: 36,
-    padding: 24,
+  const ratingBoxStyle = {
+    background: 'rgba(30,30,32,0.9)',
+    borderRadius: 16,
+    padding: '16px 24px',
+    textAlign: 'center',
+    border: '1px solid rgba(255,255,255,0.12)',
+    minWidth: 120,
+  }
+
+  const reviewCardStyle = {
+    position: 'relative',
+    margin: '24px 48px 0',
+    padding: '40px 48px',
     borderRadius: 24,
-    background: variant === 'vinyl' ? 'rgba(0,0,0,0.28)' : 'rgba(255,255,255,0.06)',
-    border: `1px solid ${variant === 'vinyl' ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.16)'}`,
+    background: 'rgba(60,60,65,0.85)',
+    backdropFilter: 'blur(20px)',
+    border: '1px solid rgba(255,255,255,0.08)',
   }
 
-  const qrWrapStyle = {
-    width: 160,
-    height: 160,
-    padding: 12,
+  const footerStyle = {
+    position: 'relative',
+    margin: '24px 48px 48px',
+    padding: '24px 32px',
     borderRadius: 20,
-    background: 'rgba(255,255,255,0.08)',
-    border: `1px solid rgba(255,255,255,0.14)`,
+    background: 'rgba(50,50,55,0.9)',
+    border: '1px solid rgba(255,255,255,0.06)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 24,
   }
 
-  const vinylTexture = variant === 'vinyl'
-    ? {
-        position: 'absolute',
-        inset: 0,
-        background:
-          'radial-gradient(circle at 50% 45%, rgba(255,255,255,0.08), rgba(0,0,0,0) 42%), repeating-radial-gradient(circle at 50% 45%, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 1px, rgba(0,0,0,0) 6px, rgba(0,0,0,0) 12px)',
-        opacity: 0.45,
-        mixBlendMode: 'overlay',
-        pointerEvents: 'none',
-      }
-    : null
-
-  const vinylDisc = variant === 'vinyl'
-    ? {
-        position: 'absolute',
-        right: -140,
-        top: 120,
-        width: 520,
-        height: 520,
-        borderRadius: 9999,
-        background:
-          'radial-gradient(circle at 50% 50%, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.05) 18%, rgba(0,0,0,0) 19%), repeating-radial-gradient(circle at 50% 50%, rgba(255,255,255,0.06) 0px, rgba(255,255,255,0.06) 1px, rgba(0,0,0,0) 7px, rgba(0,0,0,0) 14px)',
-        opacity: 0.35,
-        filter: 'blur(0.2px)',
-        pointerEvents: 'none',
-      }
-    : null
-
-  const glassHighlight = variant === 'glass'
-    ? {
-        position: 'absolute',
-        left: -120,
-        top: -120,
-        width: 520,
-        height: 520,
-        borderRadius: 9999,
-        background: `radial-gradient(circle at 40% 40%, ${tinycolor(accent).setAlpha(0.30).toRgbString()}, rgba(0,0,0,0) 62%)`,
-        filter: 'blur(8px)',
-        opacity: 0.9,
-        pointerEvents: 'none',
-      }
-    : null
+  const today = new Date().toISOString().slice(0, 10)
+  const r5 = typeof rating === 'number' ? rating / 2 : null
 
   return (
     <div style={containerStyle}>
-      {coverImage ? <img src={coverImage} alt="" style={bgStyle} crossOrigin="anonymous" /> : null}
-      <div style={maskStyle} />
-      {vinylTexture ? <div style={vinylTexture} /> : null}
-      {vinylDisc ? <div style={vinylDisc} /> : null}
-      {glassHighlight ? <div style={glassHighlight} /> : null}
+      {coverImage && <img src={coverImage} alt="" style={bgBlurStyle} crossOrigin="anonymous" />}
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.3)' }} />
 
-      <div style={panelStyle}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-          <div style={{ fontSize: 20, fontWeight: 700, color: 'rgba(255,255,255,0.86)', letterSpacing: '0.02em' }}>{brandName}</div>
-          <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)' }}>分享海报</div>
-        </div>
+      {/* Header */}
+      <div style={headerStyle}>{brandName}</div>
 
+      {/* Main Card */}
+      <div style={cardStyle}>
         <div style={coverWrapStyle}>
           {coverImage ? (
-            <img
-              src={coverImage}
-              alt={album ? `${album} 封面` : '专辑封面'}
-              style={{ width: '100%', height: 'auto', display: 'block' }}
-              crossOrigin="anonymous"
-            />
+            <img src={coverImage} alt={album} style={coverStyle} crossOrigin="anonymous" />
           ) : (
-            <div style={{ width: '100%', aspectRatio: '1 / 1', background: 'rgba(255,255,255,0.06)' }} />
+            <div style={{ ...coverStyle, background: 'rgba(255,255,255,0.06)' }} />
           )}
         </div>
 
-        <div style={titleStyle}>{album || '未命名专辑'}</div>
-        <div style={artistRowStyle}>
-          <div style={artistStyle}>{artist || '未知艺人'}</div>
-          {year ? <div style={yearStyle}>{year}</div> : null}
-        </div>
-
-        {safeTags.length || moreCount ? (
-          <div style={tagRowStyle}>
-            {safeTags.map((t) => (
-              <div key={t} style={tagStyle}>{t}</div>
-            ))}
-            {moreCount ? <div style={tagStyle}>{`+${moreCount}`}</div> : null}
-          </div>
-        ) : null}
-
-        <div style={reviewWrapStyle}>
-          <div style={{ fontSize: 20, fontWeight: 700, color: 'rgba(255,255,255,0.85)', marginBottom: 12 }}>我的乐评</div>
-          {myReview?.hasListened && (myReview?.excerpt || myReview?.score) ? (
-            <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-              {myReview?.avatarUrl ? (
-                <img
-                  src={myReview.avatarUrl}
-                  alt=""
-                  style={{ width: 56, height: 56, borderRadius: 9999, objectFit: 'cover', border: '1px solid rgba(255,255,255,0.14)' }}
-                  crossOrigin="anonymous"
-                />
-              ) : (
-                <div style={{ width: 56, height: 56, borderRadius: 9999, background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.14)' }} />
-              )}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: 'rgba(255,255,255,0.86)' }}>{myReview?.nickname || '你'}</div>
-                  {typeof myReview?.score === 'number' ? (
-                    <div style={{ fontSize: 16, fontWeight: 700, color: 'rgba(255,255,255,0.80)', fontVariantNumeric: 'tabular-nums' }}>
-                      {myReview.score.toFixed(1)} / 10
-                    </div>
-                  ) : null}
-                </div>
-                <div style={{ marginTop: 10, fontSize: 18, lineHeight: 1.45, color: 'rgba(255,255,255,0.80)' }}>
-                  {String(myReview?.excerpt || '').slice(0, 50) || '（无文字内容）'}
-                </div>
+        <div style={infoStyle}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 36, fontWeight: 700, lineHeight: 1.3 }}>{album || '未命名专辑'}</div>
+            <div style={{ fontSize: 22, color: 'rgba(255,255,255,0.7)', marginTop: 8 }}>
+              {artist || '未知艺人'}{year ? ` / ${year}` : ''}
+            </div>
+            {tags && tags.length > 0 && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+                {tags.slice(0, 4).map(t => (
+                  <span key={t} style={{ padding: '4px 12px', borderRadius: 999, fontSize: 16, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.8)' }}>{t}</span>
+                ))}
               </div>
-            </div>
-          ) : (
-            <div style={{ fontSize: 18, color: 'rgba(255,255,255,0.70)', lineHeight: 1.5 }}>快来发表第一条乐评</div>
-          )}
-        </div>
-
-        <div style={footerStyle}>
-          <div>
-            <div style={{ fontSize: 20, color: 'rgba(255,255,255,0.7)', marginBottom: 16 }}>
-              我的评分
-            </div>
-            <Stars rating10={typeof rating === 'number' ? rating : null} />
-          </div>
-
-          <div style={qrWrapStyle}>
-            {qrDataURL ? (
-              <img
-                src={qrDataURL}
-                alt="二维码"
-                style={{ width: '100%', height: '100%', display: 'block', borderRadius: 12 }}
-              />
-            ) : (
-              <div style={{ width: '100%', height: '100%', background: 'rgba(255,255,255,0.06)', borderRadius: 12 }} />
             )}
           </div>
+
+          {typeof rating === 'number' && (
+            <div style={ratingBoxStyle}>
+              <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>我的评分</div>
+              <div style={{ fontSize: 36, fontWeight: 700 }}>{rating.toFixed(1)}</div>
+              <div style={{ display: 'flex', gap: 2, justifyContent: 'center', marginTop: 4 }}>
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <StarIcon key={i} fill={r5 !== null ? Math.min(1, Math.max(0, r5 - i)) : 0} size={16} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
+      </div>
+
+      {/* Review / User Text */}
+      <div style={reviewCardStyle}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+          <div style={{ width: 48, height: 48, borderRadius: 9999, background: `linear-gradient(135deg, ${accent}, ${tinycolor(accent).darken(20).toHexString()})`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 700 }}>
+            {(userName || '我').slice(0, 1)}
+          </div>
+          <div>
+            <div style={{ fontSize: 22, fontWeight: 700 }}>{userName || '我'}</div>
+            <div style={{ fontSize: 16, color: 'rgba(255,255,255,0.5)' }}>{today} 听过这张专辑</div>
+          </div>
+        </div>
+        <div style={{ fontSize: 26, lineHeight: 1.7, color: 'rgba(255,255,255,0.88)', whiteSpace: 'pre-wrap' }}>
+          {posterText ? `「${posterText}」` : '「这张专辑值得被更多人听到。」'}
+        </div>
+      </div>
+
+      {/* Footer with QR */}
+      <div style={footerStyle}>
+        {qrDataURL ? (
+          <img src={qrDataURL} alt="QR" style={{ width: 96, height: 96, borderRadius: 12 }} />
+        ) : (
+          <div style={{ width: 96, height: 96, borderRadius: 12, background: 'rgba(255,255,255,0.06)' }} />
+        )}
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 18, color: 'rgba(255,255,255,0.7)' }}>扫码查看专辑详情</div>
+          <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>pickupmusic.xyz</div>
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 700, color: 'rgba(255,255,255,0.6)' }}>{brandName}</div>
       </div>
     </div>
   )
