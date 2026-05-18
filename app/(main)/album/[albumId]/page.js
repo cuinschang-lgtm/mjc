@@ -77,16 +77,29 @@ export default function AlbumDetailPage() {
     setLoading(true)
     setError('')
     try {
-      const url = `/api/album-details?albumId=${encodeURIComponent(albumId)}${refresh ? '&refresh=1' : ''}`
+      // 先快速加载基本信息
+      const url = `/api/album-details?albumId=${encodeURIComponent(albumId)}${refresh ? '&refresh=1' : ''}${!refresh ? '&fast=1' : ''}`
       const res = await fetch(url)
       const json = await res.json()
       if (!res.ok) throw new Error(json?.error || 'failed')
       setData(json)
+      setLoading(false)
+
+      // 如果是快速模式且内容不完整，后台加载完整数据
+      if (!refresh && json?.partial) {
+        const fullRes = await fetch(`/api/album-details?albumId=${encodeURIComponent(albumId)}`)
+        const fullJson = await fullRes.json()
+        if (fullRes.ok) setData(fullJson)
+      }
+
       return json
     } catch (e) {
       setError(e?.message || '加载失败')
       return null
     } finally {
+      setLoading(false)
+    }
+  }
       setLoading(false)
     }
   }

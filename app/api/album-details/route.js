@@ -545,8 +545,75 @@ export async function GET(request) {
   const refresh = searchParams.get('refresh') === '1'
   const aiGenerate = searchParams.get('ai') === '1'
   const useAi = searchParams.get('useAi') === '1'
+  const fast = searchParams.get('fast') === '1'
   if (!albumId) {
     return NextResponse.json({ error: 'missing albumId' }, { status: 400 })
+  }
+
+  // 快速模式：只返回数据库中的基本信息，不抓取外部 API
+  if (fast) {
+    let albumRow = null
+    try {
+      const r = await supabase
+        .from('albums')
+        .select('id,title,artist,cover_url,release_date,netease_album_id,description,genres,gallery_urls')
+        .eq('id', albumId)
+        .maybeSingle()
+      albumRow = r.data
+    } catch {}
+    if (!albumRow) {
+      try {
+        const r = await supabase
+          .from('albums')
+          .select('id,title,artist,cover_url,release_date,description,genres,gallery_urls')
+          .eq('id', albumId)
+          .maybeSingle()
+        albumRow = r.data
+      } catch {}
+    }
+    if (!albumRow) {
+      return NextResponse.json({ error: 'album not found' }, { status: 404 })
+    }
+
+    // 检查文件缓存
+    const cached = await readCache(albumId)
+    const now = Date.now()
+    if (cached?.expiresAt && typeof cached.expiresAt === 'number' && cached.expiresAt > now) {
+      return NextResponse.json({ ...cached.data, cacheHit: true }, { status: 200 })
+    }
+
+    // 返回基本信息，标记为 partial
+    return NextResponse.json({
+      basic: {
+        albumId: albumRow.id,
+        title: albumRow.title,
+        artistName: albumRow.artist,
+        releaseDate: albumRow.release_date ? String(albumRow.release_date) : null,
+        albumType: null,
+        description: albumRow.description || null,
+        genres: albumRow.genres || null,
+        galleryUrls: albumRow.gallery_urls || null,
+        platform: null,
+        platforms: null,
+        publishCompany: null,
+        coverImageUrl: albumRow.cover_url || null,
+        artistImageUrl: null,
+        trackCount: null,
+        durationMs: null,
+        durationText: null,
+        tracks: null,
+        rating: null,
+        externalIds: { neteaseAlbumId: albumRow.netease_album_id || null },
+        sourceUrl: null,
+      },
+      content: { artistBio: null, creationBackground: null, mediaReviews: null, awards: null },
+      fetchedAt: new Date().toISOString(),
+      cacheHit: false,
+      stale: false,
+      partial: true,
+      completeness: { basic: { filled: 3, total: 7 }, content: { filled: 0, total: 4 } },
+      sources: [],
+    }, { status: 200 })
   }
 
   // AI 生成请求：同步执行并返回结果
