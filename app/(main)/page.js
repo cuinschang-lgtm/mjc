@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseBrowser'
-import { Search, Plus, Filter, Tag, ExternalLink, Music, MoreHorizontal, Star, FileText, X, Trash2, ArrowUpDown } from 'lucide-react'
+import { Search, Plus, Filter, Tag, ExternalLink, Music, MoreHorizontal, Star, FileText, X, Trash2, ArrowUpDown, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import TagModal from '../../components/TagModal'
 import ReviewModal from '../../components/ReviewModal'
@@ -10,6 +10,7 @@ import { cn } from '../../lib/utils'
 import { useLanguage } from '@/contexts/LanguageContext'
 import DoubanBadge from '../../components/DoubanBadge'
 import { useRouter } from 'next/navigation'
+import QuoteCarousel from '@/components/QuoteCarousel'
 
 export default function LibraryPage() {
   const [collections, setCollections] = useState([])
@@ -22,8 +23,16 @@ export default function LibraryPage() {
   const [allTags, setAllTags] = useState([])
   const [deletingTags, setDeletingTags] = useState(new Set())
   const [deletingCollections, setDeletingCollections] = useState(new Set())
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const router = useRouter()
+
+  const greeting = useMemo(() => {
+    const h = new Date().getHours()
+    if (h < 6) return 'Good night'
+    if (h < 12) return 'Good morning'
+    if (h < 18) return 'Good afternoon'
+    return 'Good evening'
+  }, [])
 
   useEffect(() => {
     try {
@@ -209,7 +218,7 @@ export default function LibraryPage() {
   }
 
   return (
-    <div className="space-y-12 animate-fade-in-up">
+    <div className="space-y-10 animate-fade-in-up">
       <TagModal 
         isOpen={!!editingItem} 
         onClose={() => setEditingItem(null)} 
@@ -224,30 +233,77 @@ export default function LibraryPage() {
         album={viewingReviewItem}
       />
 
-      <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 relative">
-        <div className="space-y-4 relative z-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/10 border border-accent/20 text-accent text-xs font-bold tracking-wider uppercase">
-            <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></span>
-            Overview
-          </div>
-          <h1 className="text-5xl md:text-6xl font-bold text-white tracking-tight">
-            {t('library.title')}<span className="text-accent">.</span>
+      {/* Hero Section */}
+      <header className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8 items-start">
+        <div className="space-y-4">
+          <p className="text-accent text-sm font-medium italic">{greeting}, {collections.length > 0 ? 'music lover' : 'explorer'}.</p>
+          <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight">
+            你的音乐宇宙<span className="text-accent">。</span>
           </h1>
-          <p className="text-secondary text-lg max-w-md">
-            {collections.length} {t('library.subtitle')}
+          <p className="text-secondary text-base">
+            {collections.length} 张专辑在你的收藏中
           </p>
+          <Link href="/search" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm font-medium hover:bg-white/10 transition-colors mt-2">
+            <Plus size={16} />
+            {t('library.addAlbum')}
+          </Link>
         </div>
-        
-        <div className="relative z-10">
-           <Link href="/search" className="btn-primary px-8 py-3 rounded-full flex items-center gap-3 shadow-neon hover:scale-105 transition-transform group">
-              <Plus size={20} className="group-hover:rotate-90 transition-transform" />
-              <span className="font-bold">{t('library.addAlbum')}</span>
-           </Link>
+
+        <div className="hidden lg:block">
+          <QuoteCarousel language={language} />
         </div>
-        
-        {/* Decorative background element for header */}
-        <div className="absolute top-1/2 left-1/4 w-64 h-64 bg-accent/5 rounded-full blur-[80px] -z-10 mix-blend-screen pointer-events-none" />
       </header>
+
+      {/* Recently Added */}
+      {collections.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              最近添加 <ChevronRight size={16} className="text-secondary" />
+            </h2>
+            <button
+              type="button"
+              onClick={() => { setFilter('all'); setSort('added_desc') }}
+              className="text-xs text-secondary hover:text-white transition-colors flex items-center gap-1"
+            >
+              查看全部 <ChevronRight size={12} />
+            </button>
+          </div>
+          <div className="flex gap-5 overflow-x-auto pb-4 scrollbar-hide">
+            {collections.slice(0, 8).map((item) => (
+              <Link
+                key={`recent-${item.id}`}
+                href={`/album/${item.album_id}`}
+                onClick={() => { try { sessionStorage.setItem('nav:from', 'library') } catch {} }}
+                className="flex-shrink-0 w-40 group"
+              >
+                <div className="aspect-square rounded-xl overflow-hidden mb-2 relative bg-card border border-white/5 group-hover:border-accent/30 transition-all">
+                  {item.albums?.cover_url ? (
+                    <img src={item.albums.cover_url} alt={item.albums.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-white/5">
+                      <Music size={24} className="text-secondary/30" />
+                    </div>
+                  )}
+                  {item.albums?.reviews_aggregator?.[0]?.score && (
+                    <div className="absolute top-2 left-2 bg-accent/90 backdrop-blur-sm rounded-md px-1.5 py-0.5 flex items-center gap-1">
+                      <Star size={10} className="text-white fill-white" />
+                      <span className="text-[10px] font-bold text-white">{Number(item.albums.reviews_aggregator[0].score).toFixed(1)}</span>
+                    </div>
+                  )}
+                </div>
+                <p className="text-sm text-white font-medium truncate group-hover:text-accent transition-colors">{item.albums?.title}</p>
+                <p className="text-xs text-secondary truncate">{item.albums?.artist}</p>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Collection Section Title */}
+      <div className="flex items-center gap-3">
+        <h2 className="text-lg font-bold text-white">收藏专辑</h2>
+      </div>
 
       {/* Filter Bar - Glassmorphism Segmented Control */}
       <div className="sticky top-4 z-40 bg-background/80 backdrop-blur-xl border border-white/5 rounded-2xl p-2 flex flex-col md:flex-row justify-between items-center gap-4 shadow-glass">

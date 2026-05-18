@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Library, Search, BarChart3, Settings, LogOut, Shield, User } from 'lucide-react'
+import { Library, Search, BarChart3, Settings, LogOut, Shield, User, Home } from 'lucide-react'
 import { supabase } from '@/lib/supabaseBrowser'
 import { cn } from '../lib/utils'
 import { useEffect, useState } from 'react'
@@ -76,7 +76,8 @@ const Sidebar = () => {
   }
 
   const navItems = [
-    { name: t('sidebar.myLibrary'), href: '/', icon: Library, tour: 'nav-library' },
+    { name: '首页', href: '/', icon: Home, tour: 'nav-library' },
+    { name: t('sidebar.myLibrary'), href: '/', icon: Library },
     { name: t('sidebar.search'), href: '/search', icon: Search, tour: 'nav-search' },
     { name: t('sidebar.charts'), href: '/charts', icon: BarChart3 },
     ...(isAdmin ? [{ name: t('sidebar.adminAlbums'), href: '/albums', icon: Shield }] : []),
@@ -102,14 +103,14 @@ const Sidebar = () => {
           const isActive = pathname === item.href
           
           return (
-            <Link 
-              key={item.href} 
+            <Link
+              key={item.href + item.name}
               href={item.href}
               data-tour={item.tour}
               className={cn(
-                "flex items-center gap-4 px-4 py-3.5 rounded-full transition-all duration-300 group cursor-pointer relative overflow-hidden",
-                isActive 
-                  ? "text-white font-medium" 
+                "flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-300 group cursor-pointer relative overflow-hidden",
+                isActive
+                  ? "text-white font-medium"
                   : "text-secondary hover:text-white"
               )}
             >
