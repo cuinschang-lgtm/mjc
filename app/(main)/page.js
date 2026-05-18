@@ -362,8 +362,8 @@ export default function LibraryPage() {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8">
           {sortedCollections.map((item, idx) => {
              return (
-              <div 
-                key={item.id} 
+              <div
+                key={item.id}
                 data-tour={idx === 0 ? 'library-album-card' : undefined}
                 className="group relative flex flex-col"
                 onMouseEnter={() => {
@@ -372,22 +372,14 @@ export default function LibraryPage() {
                       window.dispatchEvent(new CustomEvent('pickup:onboarding', { detail: { type: 'library:hovered' } }))
                     } catch {}
                   }
-                  // Prefetch album details API for snappier navigation
-                  if (item.album_id) {
-                    const url = `/api/album-details?albumId=${encodeURIComponent(item.album_id)}`
-                    fetch(url, { priority: 'low' }).catch(() => {})
-                  }
                 }}
               >
-                <div
+                <Link
+                  href={`/album/${item.album_id}`}
+                  prefetch={true}
                   data-tour={idx === 0 ? 'library-album-cover' : undefined}
-                  className="aspect-square rounded-2xl overflow-hidden mb-4 relative bg-card shadow-lg border border-white/5 group-hover:border-accent/30 group-hover:shadow-card-hover transition-all duration-500 group-hover:-translate-y-2 cursor-pointer"
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => { try { sessionStorage.setItem('nav:from', 'library') } catch {}; router.push(`/album/${item.album_id}`) }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') { try { sessionStorage.setItem('nav:from', 'library') } catch {}; router.push(`/album/${item.album_id}`) }
-                  }}
+                  className="aspect-square rounded-2xl overflow-hidden mb-4 relative bg-card shadow-lg border border-white/5 group-hover:border-accent/30 group-hover:shadow-card-hover transition-all duration-500 group-hover:-translate-y-2 cursor-pointer block"
+                  onClick={() => { try { sessionStorage.setItem('nav:from', 'library') } catch {} }}
                 >
                   {item.albums?.cover_url ? (
                     <img 
@@ -407,10 +399,8 @@ export default function LibraryPage() {
                     data-tour={idx === 0 ? 'library-album-actions' : undefined}
                     className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-center gap-3 backdrop-blur-[4px] p-6"
                     onClick={(e) => {
-                      if (e.target === e.currentTarget) {
-                        try { sessionStorage.setItem('nav:from', 'library') } catch {}
-                        router.push(`/album/${item.album_id}`)
-                      }
+                      e.preventDefault()
+                      e.stopPropagation()
                     }}
                   >
                      <div className="grid grid-cols-2 gap-3 w-full">
@@ -524,7 +514,7 @@ export default function LibraryPage() {
 
                   {/* Douban rating badge (fetched live) */}
                   <DoubanBadge title={item.albums?.title} artist={item.albums?.artist} />
-                </div>
+                </Link>
                 
                 <div className="space-y-1">
                   <h3 className="text-white font-bold truncate group-hover:text-accent transition-colors leading-tight">{item.albums?.title}</h3>
