@@ -544,6 +544,7 @@ export async function GET(request) {
   const albumId = searchParams.get('albumId')
   const refresh = searchParams.get('refresh') === '1'
   const aiGenerate = searchParams.get('ai') === '1'
+  const useAi = searchParams.get('useAi') === '1'
   if (!albumId) {
     return NextResponse.json({ error: 'missing albumId' }, { status: 400 })
   }
@@ -906,7 +907,7 @@ export async function GET(request) {
       trackCount,
       durationMs,
       durationText: durationMs ? formatDuration(durationMs) : null,
-      tracks,
+      tracks: (useAi && aiContent?.tracklist_json) ? parseTracksFromAI(aiContent.tracklist_json) : tracks,
       rating: doubanRating,
       externalIds: {
         neteaseAlbumId: neteaseAlbumIdUsed,
@@ -914,10 +915,10 @@ export async function GET(request) {
       sourceUrl: sources[0]?.url || null,
     },
     content: {
-      artistBio: artistBio || (aiContent?.artist_bio) || null,
-      creationBackground: creationBackground || (aiContent?.creation_background) || null,
-      mediaReviews: mediaReviews || (aiContent?.media_reviews) || null,
-      awards: awards || (aiContent?.awards) || null,
+      artistBio: (useAi && aiContent?.artist_bio) || artistBio || (aiContent?.artist_bio) || null,
+      creationBackground: (useAi && aiContent?.creation_background) || creationBackground || (aiContent?.creation_background) || null,
+      mediaReviews: (useAi && aiContent?.media_reviews) || mediaReviews || (aiContent?.media_reviews) || null,
+      awards: (useAi && aiContent?.awards) || awards || (aiContent?.awards) || null,
     },
     fetchedAt,
     cacheHit: false,

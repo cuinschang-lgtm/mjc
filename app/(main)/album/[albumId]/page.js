@@ -117,7 +117,15 @@ export default function AlbumDetailPage() {
       const res = await fetch(`/api/album-details?albumId=${encodeURIComponent(albumId)}&ai=1`)
       const json = await res.json()
       if (!res.ok) throw new Error(json?.error || 'AI 生成失败')
-      await fetchDetail(true)
+      // AI 生成成功后，带 useAi=1 参数刷新，确保显示 AI 内容
+      const url = `/api/album-details?albumId=${encodeURIComponent(albumId)}&refresh=1&useAi=1`
+      const refreshRes = await fetch(url)
+      const refreshJson = await refreshRes.json()
+      if (refreshRes.ok) {
+        setData(refreshJson)
+      } else {
+        await fetchDetail(true)
+      }
     } catch (e) {
       alert(e?.message || 'AI 生成失败，请稍后重试')
     } finally {
