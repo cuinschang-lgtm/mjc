@@ -441,13 +441,13 @@ export default function AlbumDetailPage() {
       )}
 
       {loading ? (
-        <div className="grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-8">
-          <div className="aspect-square rounded-3xl bg-white/5 animate-pulse" />
+        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-8">
+          <div className="aspect-square rounded-2xl bg-white/5 animate-pulse" />
           <div className="space-y-4">
-            <div className="h-10 w-2/3 bg-white/5 rounded-2xl animate-pulse" />
-            <div className="h-5 w-1/2 bg-white/5 rounded-2xl animate-pulse" />
-            <div className="h-24 w-full bg-white/5 rounded-3xl animate-pulse" />
-            <div className="h-24 w-full bg-white/5 rounded-3xl animate-pulse" />
+            <div className="h-8 w-2/3 bg-white/5 rounded-xl animate-pulse" />
+            <div className="h-5 w-1/3 bg-white/5 rounded-xl animate-pulse" />
+            <div className="h-4 w-1/2 bg-white/5 rounded-xl animate-pulse" />
+            <div className="h-20 w-full bg-white/5 rounded-xl animate-pulse mt-4" />
           </div>
         </div>
       ) : error ? (
@@ -463,11 +463,12 @@ export default function AlbumDetailPage() {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-10 items-start">
-          <div className="space-y-4">
+        <div className="space-y-8">
+          {/* 顶部：封面 + 基本信息 */}
+          <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-8 items-start">
             <div
               className={cn(
-                'relative aspect-square rounded-3xl overflow-hidden border border-white/10 bg-card shadow-2xl',
+                'relative aspect-square rounded-2xl overflow-hidden border border-white/10 bg-card shadow-2xl',
                 coverUrl ? 'cursor-zoom-in' : ''
               )}
               onClick={() => coverUrl && setZoomOpen(true)}
@@ -494,139 +495,160 @@ export default function AlbumDetailPage() {
               )}
             </div>
 
-            <div className="flex items-center justify-between gap-4">
-              {data?.basic?.sourceUrl && (
-                <a
-                  href={data.basic.sourceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer nofollow"
-                  className="inline-flex items-center gap-2 text-sm text-secondary hover:text-accent transition-colors"
-                >
-                  数据来源
-                  <ExternalLink size={14} />
-                </a>
+            <div className="space-y-3">
+              <div className="text-xs text-secondary uppercase tracking-wider font-medium">专辑</div>
+              <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">{title}</h1>
+              <div className="text-white/80 text-lg font-medium">{artistName}</div>
+              <div className="text-sm text-secondary">
+                {data?.basic?.releaseDate || ''}{data?.basic?.releaseDate && data?.basic?.trackCount ? ' · ' : ''}
+                {data?.basic?.trackCount ? `${data.basic.trackCount} 首歌` : ''}
+                {data?.basic?.durationText ? ` · ${data.basic.durationText}` : ''}
+              </div>
+
+              {/* 标签 */}
+              <div className="flex flex-wrap gap-2 pt-2">
+                {data?.basic?.albumType && (
+                  <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-white/70">{data.basic.albumType}</span>
+                )}
+                {data?.basic?.publishCompany && (
+                  <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-white/70">{data.basic.publishCompany}</span>
+                )}
+                {data?.aiGenerated && (
+                  <span className="px-3 py-1 rounded-full bg-gradient-to-r from-accent/20 to-purple-500/20 border border-accent/30 text-xs text-accent inline-flex items-center gap-1">
+                    <Sparkles size={12} />
+                    AI 增强
+                  </span>
+                )}
+              </div>
+
+              {/* 简介 */}
+              {data?.content?.creationBackground && (
+                <p className="text-sm text-white/60 leading-relaxed line-clamp-3 pt-1">
+                  {data.content.creationBackground.slice(0, 200)}
+                </p>
               )}
-              {data?.basic?.artistImageUrl && (
-                <div className="flex items-center gap-2 text-xs text-secondary">
-                  <img
-                    src={data.basic.artistImageUrl}
-                    alt={artistName ? `${artistName} 照片` : '艺术家照片'}
-                    className="w-10 h-10 rounded-full object-cover border border-white/10"
-                    loading="lazy"
-                  />
-                  <span className="max-w-[180px] truncate">{artistName}</span>
+
+              {/* 评分 */}
+              {data?.basic?.rating?.score ? (
+                <div className="flex items-center gap-3 pt-2">
+                  <span className="text-3xl font-bold text-white">{data.basic.rating.score}</span>
+                  <div className="flex flex-col">
+                    <div className="flex gap-0.5">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star
+                          key={i}
+                          size={14}
+                          className={i < Math.round(data.basic.rating.score / 2) ? 'text-accent fill-accent' : 'text-white/20'}
+                        />
+                      ))}
+                    </div>
+                    {data.basic.rating.votes && (
+                      <span className="text-xs text-secondary mt-0.5">{data.basic.rating.votes} 人评分</span>
+                    )}
+                  </div>
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
 
-          <div className="space-y-6">
-            <header className="space-y-2">
-              <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">{title}</h1>
-              <div className="text-secondary text-base font-medium">{artistName}</div>
-              <div className="flex flex-wrap gap-2 pt-3">
-                <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-white/80">
-                  发行时间：{data?.basic?.releaseDate || '缺少信息'}
-                </span>
-                <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-white/80">
-                  平台：{data?.basic?.platforms?.join(' / ') || data?.basic?.platform || '缺少信息'}
-                </span>
-                <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-white/80">
-                  形式：{data?.basic?.albumType || '缺少信息'}
-                </span>
-                <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-white/80">
-                  厂牌：{data?.basic?.publishCompany || '缺少信息'}
-                </span>
-                <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-white/80 inline-flex items-center gap-2">
-                  <ListMusic size={14} className="text-white/60" />
-                  曲目：{data?.basic?.trackCount || '缺少信息'}
-                </span>
-                <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-white/80 inline-flex items-center gap-2">
-                  <Clock size={14} className="text-white/60" />
-                  时长：{data?.basic?.durationText || '缺少信息'}
-                </span>
-                {data?.basic?.rating?.score ? (
-                  <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-white/80 inline-flex items-center gap-2">
-                    <Star size={14} className="text-accent" />
-                    豆瓣：{data.basic.rating.score} / {data.basic.rating.scale || 10}
-                    {data.basic.rating.votes ? `（${data.basic.rating.votes} 人）` : ''}
-                  </span>
-                ) : null}
-                {data?.aiGenerated && (
-                  <span className="px-3 py-1 rounded-full bg-gradient-to-r from-accent/20 to-purple-500/20 border border-accent/30 text-xs text-accent inline-flex items-center gap-2">
-                    <Sparkles size={14} className="text-accent" />
-                    AI 增强内容
-                  </span>
-                )}
-                {data?.completeness?.content ? (
-                  <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-white/80">
-                    完整度：{Math.round((data.completeness.content.filled / data.completeness.content.total) * 100)}%
-                  </span>
-                ) : null}
-                {data?.cacheHit && (
-                  <span className="px-3 py-1 rounded-full bg-green-500/10 border border-green-500/20 text-xs text-green-400">
-                    已缓存
-                  </span>
-                )}
-                {data?.stale && (
-                  <span className="px-3 py-1 rounded-full bg-yellow-500/10 border border-yellow-500/20 text-xs text-yellow-300">
-                    回退缓存
-                  </span>
-                )}
-              </div>
-            </header>
-
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-              <section data-tour="album-tracklist" className="glass-panel p-6 rounded-3xl border border-white/10 xl:col-span-2">
-                <div className="flex items-center justify-between gap-4 mb-3">
-                  <h2 className="text-lg font-bold text-white">曲目列表</h2>
-                  {Array.isArray(data?.basic?.tracks) && data.basic.tracks.length > 12 ? (
-                    <button
-                      type="button"
-                      onClick={() => setShowAllTracks((v) => !v)}
-                      className="text-xs text-secondary hover:text-white transition-colors"
-                    >
-                      {showAllTracks ? '收起' : '展开全部'}
-                    </button>
-                  ) : null}
-                </div>
-                {Array.isArray(data?.basic?.tracks) && data.basic.tracks.length ? (
-                  <div className="divide-y divide-white/5">
-                    {(showAllTracks ? data.basic.tracks : data.basic.tracks.slice(0, 12)).map((tr) => (
-                      <div key={`${tr.index}-${tr.name || ''}`} className="py-2 flex items-center gap-3">
-                        <div className="w-7 text-xs text-secondary/70 tabular-nums">{tr.index}</div>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-sm text-white/90 truncate">{tr.name || '未知曲目'}</div>
-                          {tr.artists ? <div className="text-xs text-secondary truncate">{tr.artists}</div> : null}
-                        </div>
-                        <div className="text-xs text-secondary tabular-nums">{tr.durationText || ''}</div>
-                        {tr.neteaseSongUrl ? (
-                          <a
-                            href={tr.neteaseSongUrl}
-                            target="_blank"
-                            rel="noopener noreferrer nofollow"
-                            className="text-xs text-secondary hover:text-accent transition-colors"
-                          >
-                            试听
-                          </a>
-                        ) : null}
-                      </div>
-                    ))}
+          {/* 曲目列表 */}
+          <section data-tour="album-tracklist" className="glass-panel p-6 rounded-2xl border border-white/10">
+            <div className="flex items-center justify-between gap-4 mb-4">
+              <h2 className="text-lg font-bold text-white">曲目列表</h2>
+              {Array.isArray(data?.basic?.tracks) && data.basic.tracks.length > 12 ? (
+                <button
+                  type="button"
+                  onClick={() => setShowAllTracks((v) => !v)}
+                  className="text-xs text-secondary hover:text-white transition-colors"
+                >
+                  {showAllTracks ? '收起' : '展开全部'}
+                </button>
+              ) : null}
+            </div>
+            {Array.isArray(data?.basic?.tracks) && data.basic.tracks.length ? (
+              <div className="divide-y divide-white/5">
+                {(showAllTracks ? data.basic.tracks : data.basic.tracks.slice(0, 12)).map((tr) => (
+                  <div key={`${tr.index}-${tr.name || ''}`} className="py-3 flex items-center gap-4">
+                    <div className="w-8 text-sm text-secondary/50 tabular-nums text-center">{tr.index}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm text-white/90 truncate">{tr.name || '未知曲目'}</div>
+                      {tr.artists ? <div className="text-xs text-secondary truncate mt-0.5">{tr.artists}</div> : null}
+                    </div>
+                    <div className="text-xs text-secondary/60 tabular-nums">{tr.durationText || ''}</div>
+                    {tr.neteaseSongUrl ? (
+                      <a
+                        href={tr.neteaseSongUrl}
+                        target="_blank"
+                        rel="noopener noreferrer nofollow"
+                        className="text-xs text-secondary hover:text-accent transition-colors"
+                      >
+                        试听
+                      </a>
+                    ) : null}
                   </div>
-                ) : (
-                  <div className="text-sm text-white/60">缺少信息</div>
-                )}
-              </section>
-
-              <div data-tour="album-reviews" className="xl:col-span-2">
-                <AlbumReviewsPanel albumId={albumId} />
+                ))}
               </div>
+            ) : (
+              <div className="text-sm text-white/40 py-4 text-center">暂无曲目信息</div>
+            )}
+          </section>
 
-              {sections.map((s) => (
-                <SectionCard key={s.key} title={s.title}>
-                  {s.value ? s.value : '缺少信息'}
-                </SectionCard>
-              ))}
+          {/* 发行信息 + 详情内容 */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* 发行信息 */}
+            <section className="glass-panel p-6 rounded-2xl border border-white/10">
+              <h2 className="text-lg font-bold text-white mb-4">发行信息</h2>
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-secondary">发行时间</span>
+                  <span className="text-white/80">{data?.basic?.releaseDate || '未知'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-secondary">唱片公司</span>
+                  <span className="text-white/80">{data?.basic?.publishCompany || '未知'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-secondary">专辑类型</span>
+                  <span className="text-white/80">{data?.basic?.albumType || '未知'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-secondary">平台</span>
+                  <span className="text-white/80">{data?.basic?.platforms?.join(' / ') || '未知'}</span>
+                </div>
+                {data?.basic?.sourceUrl && (
+                  <div className="flex justify-between">
+                    <span className="text-secondary">数据来源</span>
+                    <a href={data.basic.sourceUrl} target="_blank" rel="noopener noreferrer nofollow" className="text-accent hover:underline inline-flex items-center gap-1">
+                      查看 <ExternalLink size={12} />
+                    </a>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* 艺术家简介 */}
+            <SectionCard title="艺术家简介">
+              {sections.find(s => s.key === 'artistBio')?.value || '缺少信息'}
+            </SectionCard>
+          </div>
+
+          {/* 创作背景 + 乐评 */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <SectionCard title="创作背景简介">
+              {sections.find(s => s.key === 'creationBackground')?.value || '缺少信息'}
+            </SectionCard>
+            <SectionCard title="乐评 / 媒体评价">
+              {sections.find(s => s.key === 'mediaReviews')?.value || '缺少信息'}
+            </SectionCard>
+          </div>
+
+          {/* 奖项 + 用户评论 */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <SectionCard title="奖项 / 荣誉">
+              {sections.find(s => s.key === 'awards')?.value || '缺少信息'}
+            </SectionCard>
+            <div data-tour="album-reviews">
+              <AlbumReviewsPanel albumId={albumId} />
             </div>
           </div>
         </div>

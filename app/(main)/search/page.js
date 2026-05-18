@@ -427,11 +427,11 @@ export default function SearchPage() {
 
   const openAlbumDetail = async (album) => {
     try {
-      // Save current search context for going back
       try {
         sessionStorage.setItem('nav:from', 'search')
         sessionStorage.setItem('search:last', JSON.stringify({ query, category, results }))
       } catch {}
+      // 立即跳转，在详情页加载数据
       const albumId = await ensureAlbumId(album)
       router.push(`/album/${albumId}`)
     } catch (e) {
