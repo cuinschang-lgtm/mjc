@@ -468,9 +468,19 @@ export default function LibraryPage() {
                           />
                         </a>
                      </div>
-                     
+
                     <div className="w-full grid grid-cols-2 gap-3 mt-2">
-                      <button 
+                      <Link
+                        href={`/album/${item.album_id}`}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          try { sessionStorage.setItem('nav:from', 'library') } catch {}
+                        }}
+                        className="h-10 bg-accent/90 backdrop-blur-md text-white rounded-xl text-xs font-bold hover:bg-accent transition-colors border border-accent/50 flex items-center justify-center col-span-2"
+                      >
+                        专辑详情
+                      </Link>
+                      <button
                         data-tour={idx === 0 ? 'library-edit-tags' : undefined}
                         onClick={(e) => {
                           e.stopPropagation()
