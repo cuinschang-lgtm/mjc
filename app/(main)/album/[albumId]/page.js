@@ -100,8 +100,6 @@ export default function AlbumDetailPage() {
       setLoading(false)
     }
   }
-      setLoading(false)
-    }
   }
 
   const refetchUntilReady = async () => {
