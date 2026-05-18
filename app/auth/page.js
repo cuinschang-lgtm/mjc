@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseBrowser'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Mail, Lock, Loader2, ArrowRight } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useLanguage } from '@/contexts/LanguageContext'
 
-export default function AuthPage() {
+function AuthPageInner() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -210,4 +210,8 @@ export default function AuthPage() {
       </div>
     </div>
   )
+}
+
+export default function AuthPage() {
+  return <Suspense><AuthPageInner /></Suspense>
 }
