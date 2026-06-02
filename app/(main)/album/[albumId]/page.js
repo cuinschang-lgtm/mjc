@@ -11,7 +11,7 @@ import CanvasPoster from '@/components/CanvasPoster'
 import AlbumReviewsPanel from '@/components/AlbumReviewsPanel'
 import {
   buildPosterFilename,
-  downloadAIPoster,
+  fetchAIPoster,
   downloadBlob,
   isBlankImage,
   preloadImage,
@@ -54,6 +54,7 @@ export default function AlbumDetailPage() {
   const [posterMode, setPosterMode] = useState('standard')
   const [aiPosterStyle, setAiPosterStyle] = useState('glass')
   const [generatingAiPoster, setGeneratingAiPoster] = useState(false)
+  const [aiBgDataUrl, setAiBgDataUrl] = useState('')
 
   const posterRef = useRef(null)
 
@@ -324,7 +325,8 @@ export default function AlbumDetailPage() {
   const generateAiPoster = async () => {
     try {
       setGeneratingAiPoster(true)
-      await downloadAIPoster({
+
+      const aiBgBase64 = await fetchAIPoster({
         album: title,
         artist: artistName,
         year,
@@ -334,12 +336,43 @@ export default function AlbumDetailPage() {
         style: aiPosterStyle,
         coverImageUrl: posterCoverUrl,
       })
+
+      const dataUrl = `data:image/png;base64,${aiBgBase64}`
+      setAiBgDataUrl(dataUrl)
+      setPosterMounted(true)
+
+      await new Promise((r) => {
+        requestAnimationFrame(() => requestAnimationFrame(r))
+      })
+
+      const node = posterRef.current
+      let blob = await renderPosterToBlob(node, {
+        width: 1080,
+        pixelRatio: 2,
+        backgroundColor: null,
+      })
+
+      const blank = await isBlankImage(blob).catch(() => false)
+      if (blank) {
+        blob = await renderPosterToBlob(node, {
+          width: 1080,
+          pixelRatio: 1,
+          backgroundColor: null,
+        })
+      }
+
+      if (!blob) throw new Error('render failed')
+
+      const filename = buildPosterFilename({ album: title, artist: artistName })
+      downloadBlob(blob, filename)
       setGeneratingPoster(false)
     } catch (e) {
       console.error('AI poster generate failed', e)
       alert(String(e?.message || 'AI 海报生成失败，请重试'))
     } finally {
       setGeneratingAiPoster(false)
+      setPosterMounted(false)
+      setAiBgDataUrl('')
     }
   }
 
@@ -556,6 +589,7 @@ export default function AlbumDetailPage() {
             qrDataURL={qrDataURL}
             accentColor={accentColor}
             posterText={posterText}
+            aiBackground={aiBgDataUrl}
           />
         </div>
       )}

@@ -37,6 +37,7 @@ export default function CanvasPoster({
   brandName = '拾音 Pickup',
   posterText = '',
   userName = '',
+  aiBackground = '',
 }) {
   const baseAccent = tinycolor(accentColor || '#ff4d4d')
   const accent = baseAccent.isValid() ? baseAccent.toHexString() : '#ff4d4d'
@@ -48,8 +49,16 @@ export default function CanvasPoster({
     overflow: 'hidden',
     fontFamily: '"Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif',
     color: '#fff',
-    background: '#2c2c2e',
+    background: aiBackground ? 'transparent' : '#2c2c2e',
   }
+
+  const aiBgStyle = aiBackground ? {
+    position: 'absolute',
+    inset: 0,
+    backgroundImage: `url(${aiBackground})`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+  } : null
 
   const bgBlurStyle = {
     position: 'absolute',
@@ -140,8 +149,15 @@ export default function CanvasPoster({
 
   return (
     <div style={containerStyle}>
-      {coverImage && <img src={coverImage} alt="" style={bgBlurStyle} crossOrigin="anonymous" />}
-      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.3)' }} />
+      {aiBackground ? (
+        <div style={aiBgStyle} />
+      ) : (
+        <>
+          {coverImage && <img src={coverImage} alt="" style={bgBlurStyle} crossOrigin="anonymous" />}
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.3)' }} />
+        </>
+      )}
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.25)' }} />
 
       {/* Header */}
       <div style={headerStyle}>{brandName}</div>
