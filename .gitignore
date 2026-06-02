@@ -1,0 +1,12 @@
+.env
+.env.local
+.env.*.local
+debug.log
+*.log
+
+node_modules/
+.next/
+.cache/
+.vercel/
+playwright-report/
+test-results/
