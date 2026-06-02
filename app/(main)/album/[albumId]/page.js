@@ -11,7 +11,10 @@ import CanvasPoster from '@/components/CanvasPoster'
 import AlbumReviewsPanel from '@/components/AlbumReviewsPanel'
 import {
   buildPosterFilename,
+<<<<<<< HEAD
   downloadAIPoster,
+=======
+>>>>>>> origin/main
   downloadBlob,
   isBlankImage,
   preloadImage,
@@ -19,7 +22,10 @@ import {
   renderPosterFallbackCanvas,
   renderPosterToBlob,
 } from '@/lib/sharePoster'
+<<<<<<< HEAD
 import { AI_POSTER_STYLES } from '@/lib/posterPromptBuilder'
+=======
+>>>>>>> origin/main
 
 function SectionCard({ title, children }) {
   return (
@@ -51,9 +57,12 @@ export default function AlbumDetailPage() {
   const [qrDataURL, setQrDataURL] = useState('')
   const [accentColor, setAccentColor] = useState('')
   const [posterText, setPosterText] = useState('')
+<<<<<<< HEAD
   const [posterMode, setPosterMode] = useState('standard')
   const [aiPosterStyle, setAiPosterStyle] = useState('glass')
   const [generatingAiPoster, setGeneratingAiPoster] = useState(false)
+=======
+>>>>>>> origin/main
 
   const posterRef = useRef(null)
 
@@ -321,6 +330,7 @@ export default function AlbumDetailPage() {
     }
   }
 
+<<<<<<< HEAD
   const generateAiPoster = async () => {
     try {
       setGeneratingAiPoster(true)
@@ -353,6 +363,8 @@ export default function AlbumDetailPage() {
     }
   }
 
+=======
+>>>>>>> origin/main
   return (
     <div className="max-w-full mx-auto px-4 md:px-6 py-10 animate-fade-in-up">
       {zoomOpen && coverUrl && (
@@ -451,6 +463,7 @@ export default function AlbumDetailPage() {
             <div className="glass-panel p-6 rounded-2xl border border-white/10 space-y-4">
               <h3 className="text-lg font-bold text-white">生成分享海报</h3>
 
+<<<<<<< HEAD
               <div className="flex rounded-xl bg-black/30 p-1">
                 <button
                   type="button"
@@ -499,6 +512,8 @@ export default function AlbumDetailPage() {
                 </div>
               )}
 
+=======
+>>>>>>> origin/main
               <div className="space-y-2">
                 <label className="text-sm text-secondary">写下你的感想（将显示在海报中）</label>
                 <textarea
@@ -513,6 +528,7 @@ export default function AlbumDetailPage() {
 
               <button
                 type="button"
+<<<<<<< HEAD
                 onClick={posterMode === 'ai' ? generateAiPoster : generatePoster}
                 disabled={generatingAiPoster}
                 className={`w-full py-3 rounded-xl font-bold transition-all disabled:opacity-50 disabled:pointer-events-none ${
@@ -534,6 +550,12 @@ export default function AlbumDetailPage() {
                 ) : (
                   '生成并下载海报'
                 )}
+=======
+                onClick={generatePoster}
+                className="w-full btn-primary py-3 rounded-xl font-bold"
+              >
+                生成并下载海报
+>>>>>>> origin/main
               </button>
             </div>
           </div>
