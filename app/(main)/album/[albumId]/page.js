@@ -332,6 +332,7 @@ export default function AlbumDetailPage() {
         review: posterText,
         accentColor,
         style: aiPosterStyle,
+        coverImageUrl: posterCoverUrl,
       })
       setGeneratingPoster(false)
     } catch (e) {

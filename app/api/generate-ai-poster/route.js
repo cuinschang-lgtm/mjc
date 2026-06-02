@@ -2,25 +2,10 @@ import { NextResponse } from 'next/server'
 import { generateAIPosterImage } from '@/lib/posterAiService'
 import { buildPosterPrompt } from '@/lib/posterPromptBuilder'
 
-export async function GET() {
-  const allKeys = Object.keys(process.env).filter(k => k.includes('POSTER') || k.includes('302') || k.includes('AI'))
-  return NextResponse.json({
-    envKeysFound: allKeys,
-    posterAiKeySet: !!process.env.POSTER_AI_API_KEY,
-    posterAiKeyLen: (process.env.POSTER_AI_API_KEY || '').length,
-  })
-}
-
 export async function POST(request) {
-  const diagnostic = {
-    envKeysFound: Object.keys(process.env).filter(k => k.includes('POSTER')),
-    keySet: !!process.env.POSTER_AI_API_KEY,
-    keyLen: (process.env.POSTER_AI_API_KEY || '').length,
-  }
-
   try {
     const body = await request.json()
-    const { album, artist, year, tags, review, accentColor, style } = body
+    const { album, artist, year, tags, review, accentColor, style, coverImageUrl } = body
 
     if (!album || !artist) {
       return NextResponse.json({ error: '缺少专辑名称或艺人名称' }, { status: 400 })
@@ -36,22 +21,28 @@ export async function POST(request) {
       style: style || 'glass',
     })
 
-    const result = await generateAIPosterImage({ prompt })
+    let coverBase64 = null
+    if (coverImageUrl) {
+      try {
+        const imgRes = await fetch(coverImageUrl, { signal: AbortSignal.timeout(15000) })
+        if (imgRes.ok) {
+          const buf = await imgRes.arrayBuffer()
+          coverBase64 = Buffer.from(buf).toString('base64')
+        }
+      } catch { /* 下载失败不影响主流程 */ }
+    }
 
-    return NextResponse.json({
-      success: true,
-      imageBase64: result.base64,
-      revisedPrompt: result.revisedPrompt,
-    })
+    const base64 = await generateAIPosterImage({ prompt, imageBase64: coverBase64 })
+
+    return NextResponse.json({ success: true, imageBase64: base64 })
   } catch (e) {
     console.error('AI poster generation error:', e?.message || e)
 
+    const keySet = !!process.env.POSTER_AI_API_KEY
     return NextResponse.json({
       error: e?.message || 'AI 海报生成失败',
-      diagnostic,
-      hint: diagnostic.keySet
-        ? 'API Key 已设置，但模型调用失败。'
-        : 'POSTER_AI_API_KEY 环境变量未设置，请在 Vercel Dashboard > Settings > Environment Variables 中添加',
+      diagnostic: { keySet },
+      hint: keySet ? 'API Key 已设置，但模型调用失败。' : 'POSTER_AI_API_KEY 环境变量未设置',
     }, { status: 500 })
   }
 }
