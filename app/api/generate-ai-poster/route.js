@@ -1,6 +1,15 @@
 import { NextResponse } from 'next/server'
-import { generateAIPosterImage } from '@/lib/posterAiService'
+import { generateAIPosterImage, isPosterAiConfigured } from '@/lib/posterAiService'
 import { buildPosterPrompt } from '@/lib/posterPromptBuilder'
+
+export async function GET() {
+  const key = process.env.POSTER_AI_API_KEY
+  return NextResponse.json({
+    configured: isPosterAiConfigured(),
+    keyExists: !!key,
+    keyPreview: key ? `${key.slice(0, 6)}...${key.slice(-4)}` : '未设置',
+  })
+}
 
 export async function POST(request) {
   try {
