@@ -336,15 +336,7 @@ export default function AlbumDetailPage() {
       setGeneratingPoster(false)
     } catch (e) {
       console.error('AI poster generate failed', e)
-      const msg = String(e?.message || '')
-      if (/timeout|超时/i.test(msg)) {
-        alert('AI 生成超时，请稍后重试或切换到标准海报')
-      } else if (/余额|billing/i.test(msg)) {
-        alert('AI 接口余额不足，已切换到标准海报模式')
-        setPosterMode('standard')
-      } else {
-        alert(msg || 'AI 海报生成失败，请重试')
-      }
+      alert(String(e?.message || 'AI 海报生成失败，请重试'))
     } finally {
       setGeneratingAiPoster(false)
     }
