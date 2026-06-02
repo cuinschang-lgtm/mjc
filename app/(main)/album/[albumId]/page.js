@@ -342,11 +342,8 @@ export default function AlbumDetailPage() {
       } else if (/余额|billing/i.test(msg)) {
         alert('AI 接口余额不足，已切换到标准海报模式')
         setPosterMode('standard')
-      } else if (/KEY|API/i.test(msg)) {
-        alert('AI 生图功能暂未配置，已切换到标准海报')
-        setPosterMode('standard')
       } else {
-        alert('AI 海报生成失败: ' + (msg || '请重试'))
+        alert(msg || 'AI 海报生成失败，请重试')
       }
     } finally {
       setGeneratingAiPoster(false)

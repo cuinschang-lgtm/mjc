@@ -1,17 +1,23 @@
 import { NextResponse } from 'next/server'
-import { generateAIPosterImage, isPosterAiConfigured } from '@/lib/posterAiService'
+import { generateAIPosterImage } from '@/lib/posterAiService'
 import { buildPosterPrompt } from '@/lib/posterPromptBuilder'
 
 export async function GET() {
-  const key = process.env.POSTER_AI_API_KEY
+  const allKeys = Object.keys(process.env).filter(k => k.includes('POSTER') || k.includes('302') || k.includes('AI'))
   return NextResponse.json({
-    configured: isPosterAiConfigured(),
-    keyExists: !!key,
-    keyPreview: key ? `${key.slice(0, 6)}...${key.slice(-4)}` : '未设置',
+    envKeysFound: allKeys,
+    posterAiKeySet: !!process.env.POSTER_AI_API_KEY,
+    posterAiKeyLen: (process.env.POSTER_AI_API_KEY || '').length,
   })
 }
 
 export async function POST(request) {
+  const diagnostic = {
+    envKeysFound: Object.keys(process.env).filter(k => k.includes('POSTER')),
+    keySet: !!process.env.POSTER_AI_API_KEY,
+    keyLen: (process.env.POSTER_AI_API_KEY || '').length,
+  }
+
   try {
     const body = await request.json()
     const { album, artist, year, tags, review, accentColor, style } = body
@@ -40,16 +46,12 @@ export async function POST(request) {
   } catch (e) {
     console.error('AI poster generation error:', e?.message || e)
 
-    if (e?.status === 401) {
-      return NextResponse.json({ error: 'POSTER_AI_API_KEY 无效，请检查配置' }, { status: 401 })
-    }
-    if (e?.status === 429) {
-      return NextResponse.json({ error: 'API 调用频率过高，请稍后重试' }, { status: 429 })
-    }
-    if (e?.code === 'billing_hard_limit_reached' || e?.message?.includes('billing')) {
-      return NextResponse.json({ error: '302ai 账户余额不足，请充值' }, { status: 402 })
-    }
-
-    return NextResponse.json({ error: e?.message || 'AI 海报生成失败' }, { status: 500 })
+    return NextResponse.json({
+      error: e?.message || 'AI 海报生成失败',
+      diagnostic,
+      hint: diagnostic.keySet
+        ? 'API Key 已设置但模型调用失败，请检查 302ai 模型是否可用'
+        : 'POSTER_AI_API_KEY 环境变量未设置，请在 Vercel Dashboard > Settings > Environment Variables 中添加',
+    }, { status: 500 })
   }
 }
