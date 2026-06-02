@@ -50,7 +50,7 @@ export async function POST(request) {
       error: e?.message || 'AI 海报生成失败',
       diagnostic,
       hint: diagnostic.keySet
-        ? 'API Key 已设置但模型调用失败，请检查 302ai 模型是否可用'
+        ? 'API Key 已设置，以下模型均调用失败。请检查 302ai 账户余额及模型可用性。'
         : 'POSTER_AI_API_KEY 环境变量未设置，请在 Vercel Dashboard > Settings > Environment Variables 中添加',
     }, { status: 500 })
   }
