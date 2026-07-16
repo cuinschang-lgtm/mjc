@@ -1,9 +1,10 @@
 'use client'
 
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabaseBrowser'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Mail, Lock, Loader2, ArrowRight } from 'lucide-react'
+import { Mail, Lock, Loader2, ArrowRight, ArrowLeft, Home } from 'lucide-react'
+import Link from 'next/link'
 import { cn } from '../../lib/utils'
 import { useLanguage } from '@/contexts/LanguageContext'
 
@@ -17,6 +18,7 @@ function AuthPageInner() {
   const [error, setError] = useState(null)
   const router = useRouter()
   const { t } = useLanguage()
+  const formRef = useRef(null)
 
   const returnTo = searchParams?.get('returnTo') || '/'
 
@@ -70,12 +72,24 @@ function AuthPageInner() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center -ml-72 w-[calc(100vw)] bg-background relative overflow-hidden">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background relative overflow-hidden px-4 py-8">
       {/* Background Ambience */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-[-20%] right-[-10%] w-[800px] h-[800px] bg-accent/10 rounded-full blur-[150px] animate-pulse-slow" />
         <div className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-accent-dark/20 rounded-full blur-[150px]" />
         <div className="absolute inset-0 bg-[url('/noise.png')] opacity-[0.05] mix-blend-overlay" />
+      </div>
+
+      {/* Top Navigation Bar */}
+      <div className="absolute top-0 left-0 right-0 z-20 px-6 py-4">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 text-sm text-secondary hover:text-white transition-colors px-3 py-2 rounded-xl hover:bg-white/5"
+        >
+          <ArrowLeft size={16} />
+          <span className="hidden sm:inline">{t('auth.welcome')}</span>
+          <span className="sm:hidden">Back</span>
+        </Link>
       </div>
 
       <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-12 p-8 z-10 items-center">
@@ -97,7 +111,10 @@ function AuthPageInner() {
           </p>
 
           <div className="flex gap-4">
-            <button className="btn-primary px-8 py-3 rounded-full font-bold shadow-neon hover:shadow-[0_0_30px_rgba(255,77,77,0.6)] transition-all transform hover:-translate-y-1">
+            <button
+              onClick={() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+              className="btn-primary px-8 py-3 rounded-full font-bold shadow-neon hover:shadow-[0_0_30px_rgba(255,77,77,0.6)] transition-all transform hover:-translate-y-1"
+            >
               Get Started
             </button>
             <button className="btn-secondary px-8 py-3 rounded-full font-bold">
@@ -121,7 +138,7 @@ function AuthPageInner() {
         </div>
 
         {/* Right Column: Login Form */}
-        <div className="flex justify-center lg:justify-end">
+        <div ref={formRef} className="flex justify-center lg:justify-end">
           <div className="w-full max-w-md glass-panel p-8 md:p-10 rounded-3xl border border-white/10 relative shadow-2xl backdrop-blur-xl">
             {/* Glow behind card */}
             <div className="absolute -inset-1 bg-gradient-to-r from-accent to-orange-600 rounded-3xl opacity-20 blur-xl -z-10" />
